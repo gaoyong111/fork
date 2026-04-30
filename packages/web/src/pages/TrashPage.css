@@ -1,0 +1,302 @@
+/**
+ * TrashPage 页面样式
+ * 与 CollectionList 页面风格一致，卡片略微透明表示已删除状态
+ */
+
+.trash-page {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* 工具栏 */
+.trash-page-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-xl);
+    gap: var(--spacing-lg);
+    flex-wrap: wrap;
+}
+
+.trash-page-toolbar-left {
+    display: flex;
+    align-items: baseline;
+    gap: var(--spacing-md);
+}
+
+.trash-page-title {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.trash-page-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-tertiary);
+}
+
+.trash-page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+/* 操作按钮 */
+.trash-page-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: var(--spacing-xs) var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+}
+
+.trash-page-action-btn:hover {
+    background-color: var(--color-bg-hover);
+    border-color: var(--color-primary-light);
+    color: var(--color-primary);
+}
+
+.trash-page-action-btn.danger {
+    color: var(--color-danger, #ef4444);
+    border-color: var(--color-danger-light, #fecaca);
+}
+
+.trash-page-action-btn.danger:hover {
+    background-color: var(--color-danger-bg, #fef2f2);
+    border-color: var(--color-danger, #ef4444);
+}
+
+/* 内容区域 */
+.trash-page-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--spacing-lg);
+}
+
+/* 已删除卡片样式 */
+.trash-page-card {
+    background-color: var(--color-bg-white);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border-light);
+    overflow: hidden;
+    opacity: 0.8;
+    transition: opacity var(--transition-fast);
+    position: relative;
+}
+
+.trash-page-card:hover {
+    opacity: 1;
+}
+
+/* 卡片封面 */
+.trash-page-card-cover {
+    position: relative;
+    height: 140px;
+    background-color: var(--color-bg);
+    overflow: hidden;
+}
+
+.trash-page-card-thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.trash-page-card-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-tertiary);
+    background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-bg-hover) 100%);
+}
+
+.trash-page-card-type {
+    position: absolute;
+    bottom: var(--spacing-sm);
+    left: var(--spacing-sm);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background-color: rgba(255, 255, 255, 0.85);
+    font-size: 11px;
+    color: var(--color-text-secondary);
+}
+
+/* 卡片内容 */
+.trash-page-card-body {
+    padding: var(--spacing-lg);
+}
+
+.trash-page-card-title {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    line-height: 1.4;
+    margin-bottom: var(--spacing-sm);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.trash-page-card-desc {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    margin-bottom: var(--spacing-sm);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.trash-page-card-url {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: var(--spacing-sm);
+}
+
+/* 标签 */
+.trash-page-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: var(--spacing-md);
+}
+
+.trash-page-card-tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    border: 1px solid;
+    background-color: transparent;
+}
+
+.trash-page-card-tag-more {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+}
+
+/* 删除时间 */
+.trash-page-card-time {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+    margin-bottom: var(--spacing-md);
+}
+
+/* 卡片操作按钮 */
+.trash-page-card-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-border-light);
+}
+
+.trash-page-card-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    border: none;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.trash-page-card-btn.restore {
+    color: var(--color-primary);
+    background-color: var(--color-primary-bg);
+}
+
+.trash-page-card-btn.restore:hover {
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+}
+
+.trash-page-card-btn.delete {
+    color: var(--color-danger, #ef4444);
+    background-color: var(--color-danger-bg, #fef2f2);
+}
+
+.trash-page-card-btn.delete:hover {
+    background-color: var(--color-danger, #ef4444);
+    color: white;
+}
+
+/* 加载状态 */
+.trash-page-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 0;
+    gap: var(--spacing-lg);
+    color: var(--color-text-tertiary);
+    font-size: var(--font-size-sm);
+}
+
+/* 空状态 */
+.trash-page-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 0;
+    gap: var(--spacing-lg);
+    color: var(--color-text-tertiary);
+}
+
+.trash-page-empty p {
+    font-size: var(--font-size-lg);
+}
+
+/* 分页 */
+.trash-page-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-xl) 0;
+}
+
+.trash-page-pagination .pagination-btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background-color: var(--color-bg-white);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    transition: all var(--transition-fast);
+}
+
+.trash-page-pagination .pagination-btn:hover:not(:disabled) {
+    background-color: var(--color-bg-hover);
+    border-color: var(--color-primary-light);
+    color: var(--color-primary);
+}
+
+.trash-page-pagination .pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.trash-page-pagination .pagination-info {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}

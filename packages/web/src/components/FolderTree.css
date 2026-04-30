@@ -1,0 +1,277 @@
+/**
+ * FolderTree 组件样式
+ */
+
+.folder-tree {
+    padding: var(--spacing-sm) 0;
+}
+
+.folder-tree-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    margin-bottom: var(--spacing-xs);
+}
+
+.folder-tree-header-title {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.folder-tree-header-add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-tertiary);
+    transition: all var(--transition-fast);
+}
+
+.folder-tree-header-add:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+}
+
+.folder-tree-list {
+    padding: 0;
+}
+
+.folder-tree-children {
+    padding: 0;
+}
+
+.folder-tree-node {
+    list-style: none;
+}
+
+.folder-tree-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 6px var(--spacing-lg);
+    cursor: pointer;
+    border-radius: 0;
+    transition: background-color var(--transition-fast);
+    position: relative;
+    user-select: none;
+}
+
+.folder-tree-item:hover {
+    background-color: var(--color-bg-hover);
+}
+
+.folder-tree-item.selected {
+    background-color: var(--color-primary-bg);
+    color: var(--color-primary-dark);
+}
+
+.folder-tree-item.selected .folder-tree-icon {
+    color: var(--color-primary);
+}
+
+.folder-tree-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: var(--color-text-tertiary);
+}
+
+.folder-tree-toggle.invisible {
+    visibility: hidden;
+}
+
+.folder-tree-icon {
+    flex-shrink: 0;
+    color: var(--color-text-tertiary);
+}
+
+.folder-tree-name {
+    flex: 1;
+    font-size: var(--font-size-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-tree-count {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+    flex-shrink: 0;
+}
+
+/* 操作按钮容器 */
+.folder-tree-item-actions {
+    display: none;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.folder-tree-item:hover .folder-tree-item-actions {
+    display: flex;
+}
+
+.folder-tree-item-actions button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-tertiary);
+    transition: all var(--transition-fast);
+}
+
+.folder-tree-item-actions button:hover {
+    background-color: var(--color-bg-active);
+    color: var(--color-text-secondary);
+}
+
+/* 更多操作按钮 */
+.folder-tree-more-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-tertiary);
+    flex-shrink: 0;
+    transition: all var(--transition-fast);
+}
+
+.folder-tree-more-btn:hover {
+    background-color: var(--color-bg-active);
+    color: var(--color-text-secondary);
+}
+
+/* 重命名输入框 */
+.folder-tree-rename-input {
+    flex: 1;
+    padding: 2px 6px;
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--color-primary);
+    border-radius: 4px;
+    outline: none;
+    background: #fff;
+    color: var(--color-text-primary);
+    min-width: 0;
+}
+
+.folder-tree-rename-input:focus {
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.folder-tree-rename-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* 下拉菜单 */
+.folder-tree-context-menu {
+    position: absolute;
+    right: var(--spacing-lg);
+    top: 100%;
+    z-index: 100;
+    min-width: 120px;
+    padding: 4px 0;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    animation: folderMenuFadeIn 0.15s ease-out;
+}
+
+.folder-tree-context-menu button {
+    display: block;
+    width: 100%;
+    padding: 6px 12px;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    text-align: left;
+    background: none;
+    transition: background-color var(--transition-fast);
+}
+
+.folder-tree-context-menu button:hover {
+    background-color: var(--color-bg-hover);
+}
+
+.folder-tree-context-menu button.danger {
+    color: var(--color-danger, #ef4444);
+}
+
+.folder-tree-context-menu button.danger:hover {
+    background-color: rgba(239, 68, 68, 0.08);
+}
+
+@keyframes folderMenuFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.folder-tree-add-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-tertiary);
+    flex-shrink: 0;
+    transition: all var(--transition-fast);
+}
+
+.folder-tree-item:hover .folder-tree-add-btn {
+    display: flex;
+}
+
+.folder-tree-add-btn:hover {
+    background-color: var(--color-bg-active);
+    color: var(--color-text-secondary);
+}
+
+/* 拖放高亮 */
+.folder-tree-item.drag-over {
+    background-color: var(--color-primary-bg);
+    outline: 2px dashed var(--color-primary);
+    outline-offset: -2px;
+}
+
+/* 拖拽排序手柄 */
+.folder-tree-drag-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: var(--color-text-quaternary);
+    cursor: grab;
+    border-radius: var(--radius-sm);
+    transition: color var(--transition-fast);
+}
+
+.folder-tree-drag-handle:hover {
+    color: var(--color-text-secondary);
+}
+
+.folder-tree-drag-handle:active {
+    cursor: grabbing;
+}

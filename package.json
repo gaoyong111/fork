@@ -1,0 +1,27 @@
+{
+    "name": "favorites",
+    "version": "0.1.0",
+    "private": true,
+    "description": "全平台个人收藏管理系统",
+    "scripts": {
+        "dev:web": "pnpm --filter @favorites/web dev",
+        "build:web": "pnpm --filter @favorites/web build",
+        "dev:server": "pnpm --filter @favorites/server dev",
+        "build:server": "pnpm --filter @favorites/server build",
+        "dev:desktop": "pnpm --filter @favorites/desktop dev",
+        "build:desktop": "pnpm --filter @favorites/web build && pnpm --filter @favorites/desktop build",
+        "docker:build": "docker build -t favorites .",
+        "docker:up": "docker-compose up -d",
+        "docker:down": "docker-compose down"
+    },
+    "engines": {
+        "node": ">=22.0.0",
+        "pnpm": ">=9.0.0"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "better-sqlite3",
+            "esbuild"
+        ]
+    }
+}

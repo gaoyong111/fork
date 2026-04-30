@@ -1,0 +1,129 @@
+/**
+ * Toast 通知组件样式
+ * 右上角固定定位，支持堆叠显示
+ */
+
+.toast-container {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 380px;
+    pointer-events: none;
+}
+
+.toast-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    pointer-events: auto;
+    animation: toastSlideInRight 0.3s ease-out;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #1f2937;
+    border-left: 4px solid transparent;
+}
+
+.toast-item.exiting {
+    animation: toastFadeOut 0.25s ease-in forwards;
+}
+
+/* 类型颜色 */
+.toast-item.success {
+    border-left-color: #22c55e;
+    background: #f0fdf4;
+}
+
+.toast-item.error {
+    border-left-color: #ef4444;
+    background: #fef2f2;
+}
+
+.toast-item.warning {
+    border-left-color: #f59e0b;
+    background: #fffbeb;
+}
+
+.toast-item.info {
+    border-left-color: #3b82f6;
+    background: #eff6ff;
+}
+
+.toast-icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+}
+
+.toast-item.success .toast-icon {
+    color: #22c55e;
+}
+
+.toast-item.error .toast-icon {
+    color: #ef4444;
+}
+
+.toast-item.warning .toast-icon {
+    color: #f59e0b;
+}
+
+.toast-item.info .toast-icon {
+    color: #3b82f6;
+}
+
+.toast-message {
+    flex: 1;
+    word-break: break-word;
+}
+
+.toast-close {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0;
+    transition: background 0.15s, color 0.15s;
+}
+
+.toast-close:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: #6b7280;
+}
+
+/* 进入动画 */
+@keyframes toastSlideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* 退出动画 */
+@keyframes toastFadeOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(40px);
+    }
+}

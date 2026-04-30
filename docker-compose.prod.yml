@@ -1,0 +1,25 @@
+services:
+    backend:
+        build: .
+        environment:
+            - NODE_ENV=production
+        volumes:
+            - favorites-data:/app/data
+            - favorites-uploads:/app/uploads
+        restart: unless-stopped
+        expose:
+            - '3001'
+
+    nginx:
+        build:
+            context: .
+            dockerfile: Dockerfile.nginx
+        ports:
+            - '80:80'
+        depends_on:
+            - backend
+        restart: unless-stopped
+
+volumes:
+    favorites-data:
+    favorites-uploads:

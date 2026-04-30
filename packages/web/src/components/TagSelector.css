@@ -1,0 +1,144 @@
+/**
+ * TagSelector 组件样式
+ */
+
+.tag-selector {
+    position: relative;
+}
+
+.tag-selector-selected {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    padding: 6px 10px;
+    background-color: var(--color-bg-white);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: border-color var(--transition-fast);
+}
+
+.tag-selector-selected:hover {
+    border-color: var(--color-primary-light);
+}
+
+.tag-selector-placeholder {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-tertiary);
+}
+
+.tag-selector-arrow {
+    margin-left: auto;
+    color: var(--color-text-tertiary);
+    flex-shrink: 0;
+    transition: transform var(--transition-fast);
+}
+
+.tag-selector-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    border: 1px solid;
+}
+
+.tag-selector-tag-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: var(--radius-full);
+    color: inherit;
+    opacity: 0.6;
+    transition: opacity var(--transition-fast);
+}
+
+.tag-selector-tag-remove:hover {
+    opacity: 1;
+}
+
+/* 下拉区域 */
+.tag-selector-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background-color: var(--color-bg-white);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.tag-selector-options {
+    padding: var(--spacing-xs) 0;
+}
+
+.tag-selector-option {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    text-align: left;
+    transition: background-color var(--transition-fast);
+}
+
+.tag-selector-option:hover {
+    background-color: var(--color-bg-hover);
+}
+
+.tag-selector-option-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.tag-selector-option-name {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+}
+
+/* 创建新标签 */
+.tag-selector-create {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    border-top: 1px solid var(--color-border-light);
+}
+
+.tag-selector-create-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    background: transparent;
+}
+
+.tag-selector-create-input::placeholder {
+    color: var(--color-text-tertiary);
+}
+
+.tag-selector-create-btn {
+    padding: 2px 10px;
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    transition: background-color var(--transition-fast);
+}
+
+.tag-selector-create-btn:hover {
+    background-color: var(--color-primary-dark);
+}

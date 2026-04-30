@@ -1,0 +1,82 @@
+/**
+ * FolderSelector 组件样式
+ */
+
+.folder-selector {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 100;
+    min-width: 220px;
+    max-height: 320px;
+    background-color: var(--color-bg-white);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    margin-top: var(--spacing-xs);
+}
+
+.folder-selector-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.folder-selector-list {
+    overflow-y: auto;
+    padding: var(--spacing-xs) 0;
+}
+
+.folder-selector-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    color: var(--color-text-secondary);
+    text-align: left;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+}
+
+.folder-selector-item:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.folder-selector-item-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: var(--font-size-sm);
+}
+
+.folder-selector-item-count {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+}
+
+.folder-selector-uncategorized {
+    color: var(--color-text-tertiary);
+    font-style: italic;
+}
+
+.folder-selector-divider {
+    height: 1px;
+    background-color: var(--color-border-light);
+    margin: 0;
+}
+
+.folder-selector-empty {
+    padding: var(--spacing-lg) var(--spacing-md);
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-tertiary);
+}

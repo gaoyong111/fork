@@ -1,0 +1,15 @@
+services:
+    favorites:
+        build: .
+        ports:
+            - '3000:3001'
+        volumes:
+            - favorites-data:/app/data
+            - favorites-uploads:/app/uploads
+        environment:
+            - NODE_ENV=production
+        restart: unless-stopped
+
+volumes:
+    favorites-data:
+    favorites-uploads:

@@ -1,0 +1,275 @@
+/**
+ * QuickSaveModal 组件样式
+ * 底部弹出面板设计，移动端友好
+ */
+
+/* 遮罩层 */
+.quick-save-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 1000;
+    animation: quick-save-fade-in 0.2s ease-out;
+}
+
+@keyframes quick-save-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* 底部弹出面板 */
+.quick-save-panel {
+    background-color: var(--color-bg-white, #ffffff);
+    border-radius: 16px 16px 0 0;
+    width: 100%;
+    max-width: 480px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 24px;
+    animation: quick-save-slide-up 0.3s ease-out;
+}
+
+@keyframes quick-save-slide-up {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+/* 链接预览卡片 */
+.quick-save-preview {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background-color: var(--color-bg-gray, #f9fafb);
+    border-radius: 12px;
+    margin-bottom: 16px;
+}
+
+.quick-save-preview-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background-color: var(--color-bg-white, #ffffff);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.quick-save-preview-icon img {
+    width: 24px;
+    height: 24px;
+}
+
+.quick-save-preview-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.quick-save-preview-domain {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text-primary, #111827);
+    margin-bottom: 2px;
+}
+
+.quick-save-preview-url {
+    font-size: 12px;
+    color: var(--color-text-tertiary, #9ca3af);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 标签选择 */
+.quick-save-tags {
+    margin-bottom: 16px;
+}
+
+.quick-save-tags-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-secondary, #6b7280);
+    margin-bottom: 8px;
+}
+
+.quick-save-tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.quick-save-tag {
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 13px;
+    border: 1px solid var(--color-border, #e5e7eb);
+    background-color: var(--color-bg-white, #ffffff);
+    color: var(--color-text-secondary, #6b7280);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.quick-save-tag:hover {
+    border-color: var(--tag-color, var(--color-primary, #6366f1));
+}
+
+.quick-save-tag.selected {
+    background-color: var(--tag-color, var(--color-primary, #6366f1));
+    border-color: var(--tag-color, var(--color-primary, #6366f1));
+    color: #ffffff;
+}
+
+/* 文件夹选择 */
+.quick-save-folders {
+    margin-bottom: 16px;
+}
+
+.quick-save-folders-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-secondary, #6b7280);
+    margin-bottom: 8px;
+}
+
+.quick-save-folders-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.quick-save-folder-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    color: var(--color-text-primary, #111827);
+    background-color: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+    width: 100%;
+}
+
+.quick-save-folder-item:hover {
+    background-color: var(--color-bg-hover, #f3f4f6);
+}
+
+.quick-save-folder-item.selected {
+    background-color: var(--color-primary-light, #eef2ff);
+    border-color: var(--color-primary, #6366f1);
+    color: var(--color-primary, #6366f1);
+}
+
+/* 错误提示 */
+.quick-save-error {
+    padding: 8px 12px;
+    background-color: #fef2f2;
+    color: #dc2626;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+/* 操作按钮 */
+.quick-save-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.quick-save-btn {
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s ease;
+}
+
+.quick-save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.quick-save-btn-primary {
+    background-color: var(--color-primary, #6366f1);
+    color: #ffffff;
+}
+
+.quick-save-btn-primary:hover:not(:disabled) {
+    background-color: var(--color-primary-dark, #4f46e5);
+}
+
+.quick-save-btn-secondary {
+    background-color: var(--color-bg-gray, #f3f4f6);
+    color: var(--color-text-primary, #111827);
+}
+
+.quick-save-btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-bg-hover, #e5e7eb);
+}
+
+.quick-save-btn-cancel {
+    background-color: transparent;
+    color: var(--color-text-tertiary, #9ca3af);
+}
+
+.quick-save-btn-cancel:hover:not(:disabled) {
+    color: var(--color-text-secondary, #6b7280);
+}
+
+/* 成功状态 */
+.quick-save-success {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 0;
+}
+
+.quick-save-success-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background-color: #ecfdf5;
+    color: #10b981;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.quick-save-success-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text-primary, #111827);
+}
+
+/* 移动端适配 */
+@media (max-width: 480px) {
+    .quick-save-panel {
+        padding: 20px 16px;
+    }
+}
