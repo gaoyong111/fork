@@ -312,3 +312,41 @@
     max-height: 500px;
     overflow-y: auto;
 }
+
+.detail-content-rich {
+    font-size: var(--font-size-md);
+    color: var(--color-text-primary);
+    line-height: 1.8;
+    word-break: break-word;
+    background-color: var(--color-bg);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.detail-content-rich h3 {
+    font-family: var(--font-serif);
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-primary-dark);
+    margin: var(--spacing-lg) 0 var(--spacing-sm);
+}
+
+.detail-content-rich h3:first-child {
+    margin-top: 0;
+}
+
+.detail-content-rich p {
+    margin-bottom: var(--spacing-sm);
+    line-height: 1.8;
+}
+
+.detail-content-rich p:last-child {
+    margin-bottom: 0;
+}
+
+.detail-content-rich strong {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}

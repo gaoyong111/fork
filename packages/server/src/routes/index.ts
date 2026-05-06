@@ -8,6 +8,7 @@ import metadataRoutes from './metadataRoutes';
 import exportRoutes from './exportRoutes';
 import importRoutes from './importRoutes';
 import trashRoutes from './trashRoutes';
+import aiRoutes from './aiRoutes';
 
 /**
  * 注册所有 API 路由
@@ -42,6 +43,9 @@ function registerRoutes(): Router {
 
     // 回收站
     router.use('/trash', trashRoutes);
+
+    // AI 服务
+    router.use('/ai', aiRoutes);
 
     return router;
 }

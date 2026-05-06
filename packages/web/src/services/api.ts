@@ -562,6 +562,20 @@ export async function fetchMetadata(url: string): Promise<MetadataResult> {
     });
 }
 
+// ==================== AI 服务 API ====================
+
+/**
+ * AI 提取文章内容并生成精读摘要
+ * @param url - 文章 URL
+ * @returns AI 生成的精读摘要（HTML 格式）
+ */
+export async function extractSummary(url: string): Promise<{ summary: string }> {
+    return request<{ summary: string }>('/ai/summarize', {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+    });
+}
+
 // ==================== 数据导入/导出 API ====================
 
 /**

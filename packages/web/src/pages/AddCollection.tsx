@@ -135,7 +135,6 @@ export default function AddCollection() {
         setFetchingMetadata(true);
         try {
             const metadata = await api.fetchMetadata(trimmedUrl);
-            // 回填逻辑：只填充用户未手动输入的字段
             if (metadata.title && !title.trim()) {
                 setTitle(metadata.title);
             }
@@ -144,6 +143,17 @@ export default function AddCollection() {
             }
             if (metadata.coverUrl && !thumbnailUrl) {
                 setThumbnailUrl(metadata.coverUrl);
+            }
+
+            // 根据标题和描述自动匹配标签
+            const matchText = [metadata.title, metadata.description].filter(Boolean).join(' ').toLowerCase();
+            if (matchText) {
+                const matchedTagIds = tags
+                    .filter((tag) => !tagIds.includes(tag.id) && matchText.includes(tag.name.toLowerCase()))
+                    .map((tag) => tag.id);
+                if (matchedTagIds.length > 0) {
+                    setTagIds((prev) => [...prev, ...matchedTagIds]);
+                }
             }
         } catch {
             // 静默忽略，不影响用户手动输入

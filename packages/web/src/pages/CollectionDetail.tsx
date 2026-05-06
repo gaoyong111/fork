@@ -24,6 +24,7 @@ export default function CollectionDetail() {
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [extracting, setExtracting] = useState(false);
 
     // 编辑表单状态
     const [editTitle, setEditTitle] = useState('');
@@ -160,6 +161,35 @@ export default function CollectionDetail() {
     };
 
     /**
+     * AI 提取文章内容并生成精读摘要
+     */
+    const handleExtractSummary = async () => {
+        if (!collection || !collection.url) return;
+
+        try {
+            setExtracting(true);
+            const result = await api.extractSummary(collection.url);
+            const updated = await api.updateCollection(collection.id, {
+                content: result.summary,
+            });
+            setCollection(updated);
+            showToast('精读完成', 'success');
+        } catch (err) {
+            console.error('AI 精读失败:', err);
+            showToast('AI 精读失败，请稍后重试', 'error');
+        } finally {
+            setExtracting(false);
+        }
+    };
+
+    /**
+     * 判断内容是否为 HTML
+     */
+    function isHtmlContent(text: string): boolean {
+        return /<[a-z][\s\S]*>/i.test(text);
+    }
+
+    /**
      * 扁平化文件夹树（用于下拉选择）
      */
     const flattenFolders = (folderList: Folder[], depth: number = 0): { id: string; name: string; depth: number }[] => {
@@ -237,6 +267,20 @@ export default function CollectionDetail() {
                             </svg>
                             删除
                         </button>
+                        {collection.type === 'link' && collection.url && (
+                            <button
+                                className="action-btn"
+                                onClick={handleExtractSummary}
+                                disabled={extracting}
+                                title="AI 自动提取文章内容并生成精读摘要"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <polyline points="12 6 12 12 16 14" />
+                                </svg>
+                                {extracting ? '精读中...' : '提取精读'}
+                            </button>
+                        )}
                     </>
                 ) : (
                     <>
@@ -415,10 +459,19 @@ export default function CollectionDetail() {
                         {/* 内容 */}
                         {collection.content && (
                             <div className="detail-section">
-                                <h3 className="detail-section-title">内容</h3>
-                                <div className="detail-content-text">
-                                    {collection.content}
-                                </div>
+                                <h3 className="detail-section-title">
+                                    {isHtmlContent(collection.content) ? 'AI 精读摘要' : '内容'}
+                                </h3>
+                                {isHtmlContent(collection.content) ? (
+                                    <div
+                                        className="detail-content-rich"
+                                        dangerouslySetInnerHTML={{ __html: collection.content }}
+                                    />
+                                ) : (
+                                    <div className="detail-content-text">
+                                        {collection.content}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
