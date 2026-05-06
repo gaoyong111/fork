@@ -84,10 +84,6 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
     const sortByParam = searchParams.get('sortBy') || 'createdAt';
     const sortOrderParam = (searchParams.get('sortOrder') || 'desc') as 'asc' | 'desc';
 
-    useEffect(() => {
-        loadCollections();
-    }, [folderId, tagId, isFavorite, sortByParam, sortOrderParam, pagination.page, refreshKey, loadCollections]);
-
     /**
      * 监听全局 focus-search 事件，响应 Ctrl/Cmd+K 快捷键
      */
@@ -103,9 +99,9 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
     }, []);
 
     /**
-     * 加载收藏列表
+     * 手动重新加载收藏列表（供事件处理函数调用，不依赖 useEffect）
      */
-    const loadCollections = useCallback(async () => {
+    async function reloadCollections() {
         try {
             setLoading(true);
             const params: GetCollectionsParams = {
@@ -118,7 +114,6 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
                 sortBy: sortByParam,
                 sortOrder: sortOrderParam,
             };
-
             const result = await api.getCollections(params);
             setCollections(result.items);
             setPagination(result.pagination);
@@ -127,7 +122,39 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
         } finally {
             setLoading(false);
         }
-    }, [pagination.page, pagination.pageSize, folderId, tagId, isFavorite, keyword, sortByParam, sortOrderParam]);
+    }
+
+    /**
+     * 筛选条件、页码或搜索关键词变化时自动加载列表
+     */
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                setLoading(true);
+                const params: GetCollectionsParams = {
+                    page: pagination.page,
+                    pageSize: pagination.pageSize,
+                    folderId,
+                    tagId,
+                    isFavorite,
+                    keyword: keyword || undefined,
+                    sortBy: sortByParam,
+                    sortOrder: sortOrderParam,
+                };
+                const result = await api.getCollections(params);
+                if (!cancelled) {
+                    setCollections(result.items);
+                    setPagination(result.pagination);
+                }
+            } catch (err) {
+                if (!cancelled) console.error('加载收藏列表失败:', err);
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [folderId, tagId, isFavorite, sortByParam, sortOrderParam, pagination.page, refreshKey, keyword]);
 
     /**
      * 加载文件夹和标签数据（批量操作时使用）
@@ -146,24 +173,17 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
     }
 
     /**
-     * 搜索处理（300ms 防抖）
+     * 搜索处理（300ms 防抖），防抖结束后更新 keyword，由 useEffect 自动触发加载
      */
-    const handleSearch = useCallback(
-        (value: string) => {
+    const handleSearch = (value: string) => {
+        if (searchTimerRef.current) {
+            clearTimeout(searchTimerRef.current);
+        }
+
+        searchTimerRef.current = setTimeout(() => {
             setKeyword(value);
-
-            if (searchTimerRef.current) {
-                clearTimeout(searchTimerRef.current);
-            }
-
-            searchTimerRef.current = setTimeout(() => {
-                if (!value || value.length >= 2) {
-                    loadCollections();
-                }
-            }, 300);
-        },
-        [loadCollections],
-    );
+        }, 300);
+    };
 
     /**
      * 组件卸载时清理搜索防抖定时器
@@ -190,7 +210,7 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
     const handleToggleFavorite = async (id: string) => {
         try {
             await api.toggleFavorite(id);
-            await loadCollections();
+            await reloadCollections();
         } catch (err) {
             console.error('切换星标失败:', err);
         }
@@ -293,8 +313,9 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
         try {
             setBatchLoading(true);
             await api.batchDeleteCollections(Array.from(selectedIds));
+            window.dispatchEvent(new CustomEvent('trash-updated'));
             exitBatchMode();
-            await loadCollections();
+            await reloadCollections();
         } catch (err) {
             console.error('批量删除失败:', err);
             showToast('批量删除失败，请重试', 'error');
@@ -316,7 +337,7 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
         try {
             await api.batchMoveCollections(Array.from(selectedIds), targetFolderId);
             exitBatchMode();
-            await loadCollections();
+            await reloadCollections();
         } catch (err) {
             console.error('批量移动失败:', err);
             showToast('批量移动失败，请重试', 'error');
@@ -338,7 +359,7 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
         try {
             await api.batchAddTags(Array.from(selectedIds), tagIds, 'add');
             exitBatchMode();
-            await loadCollections();
+            await reloadCollections();
         } catch (err) {
             console.error('批量添加标签失败:', err);
             showToast('批量添加标签失败，请重试', 'error');
@@ -498,7 +519,6 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
                                 selectable={batchMode}
                                 selected={selectedIds.has(collection.id)}
                                 onSelect={handleSelectItem}
-                                draggable
                             />
                         ))}
                     </div>

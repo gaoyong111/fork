@@ -1,5 +1,5 @@
 /**
- * QuickSaveModal 组件样式
+ * QuickSaveModal 组件样式 - 温润书房风格
  * 底部弹出面板设计，移动端友好
  */
 
@@ -10,7 +10,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(44, 36, 22, 0.5);
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -29,7 +29,7 @@
 
 /* 底部弹出面板 */
 .quick-save-panel {
-    background-color: var(--color-bg-white, #ffffff);
+    background-color: var(--color-bg-white);
     border-radius: 16px 16px 0 0;
     width: 100%;
     max-width: 480px;
@@ -54,7 +54,7 @@
     align-items: center;
     gap: 12px;
     padding: 16px;
-    background-color: var(--color-bg-gray, #f9fafb);
+    background-color: var(--color-bg);
     border-radius: 12px;
     margin-bottom: 16px;
 }
@@ -63,7 +63,7 @@
     width: 40px;
     height: 40px;
     border-radius: 8px;
-    background-color: var(--color-bg-white, #ffffff);
+    background-color: var(--color-bg-white);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -84,13 +84,13 @@
 .quick-save-preview-domain {
     font-size: 15px;
     font-weight: 600;
-    color: var(--color-text-primary, #111827);
+    color: var(--color-text-primary);
     margin-bottom: 2px;
 }
 
 .quick-save-preview-url {
     font-size: 12px;
-    color: var(--color-text-tertiary, #9ca3af);
+    color: var(--color-text-tertiary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -104,7 +104,7 @@
 .quick-save-tags-label {
     font-size: 13px;
     font-weight: 500;
-    color: var(--color-text-secondary, #6b7280);
+    color: var(--color-text-secondary);
     margin-bottom: 8px;
 }
 
@@ -118,21 +118,21 @@
     padding: 4px 12px;
     border-radius: 16px;
     font-size: 13px;
-    border: 1px solid var(--color-border, #e5e7eb);
-    background-color: var(--color-bg-white, #ffffff);
-    color: var(--color-text-secondary, #6b7280);
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg-white);
+    color: var(--color-text-secondary);
     cursor: pointer;
     transition: all 0.15s ease;
 }
 
 .quick-save-tag:hover {
-    border-color: var(--tag-color, var(--color-primary, #6366f1));
+    border-color: var(--tag-color, var(--color-primary-light));
 }
 
 .quick-save-tag.selected {
-    background-color: var(--tag-color, var(--color-primary, #6366f1));
-    border-color: var(--tag-color, var(--color-primary, #6366f1));
-    color: #ffffff;
+    background-color: var(--tag-color, var(--color-primary-light));
+    border-color: var(--tag-color, var(--color-primary-light));
+    color: var(--color-text-inverse);
 }
 
 /* 文件夹选择 */
@@ -143,7 +143,7 @@
 .quick-save-folders-label {
     font-size: 13px;
     font-weight: 500;
-    color: var(--color-text-secondary, #6b7280);
+    color: var(--color-text-secondary);
     margin-bottom: 8px;
 }
 
@@ -162,7 +162,7 @@
     padding: 10px 12px;
     border-radius: 8px;
     font-size: 14px;
-    color: var(--color-text-primary, #111827);
+    color: var(--color-text-primary);
     background-color: transparent;
     border: 1px solid transparent;
     cursor: pointer;
@@ -172,20 +172,20 @@
 }
 
 .quick-save-folder-item:hover {
-    background-color: var(--color-bg-hover, #f3f4f6);
+    background-color: var(--color-bg-hover);
 }
 
 .quick-save-folder-item.selected {
-    background-color: var(--color-primary-light, #eef2ff);
-    border-color: var(--color-primary, #6366f1);
-    color: var(--color-primary, #6366f1);
+    background-color: var(--color-primary-bg);
+    border-color: var(--color-primary-light);
+    color: var(--color-primary-dark);
 }
 
 /* 错误提示 */
 .quick-save-error {
     padding: 8px 12px;
     background-color: #fef2f2;
-    color: #dc2626;
+    color: var(--color-danger);
     border-radius: 8px;
     font-size: 13px;
     margin-bottom: 16px;
@@ -214,33 +214,33 @@
 }
 
 .quick-save-btn-primary {
-    background-color: var(--color-primary, #6366f1);
-    color: #ffffff;
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
 }
 
 .quick-save-btn-primary:hover:not(:disabled) {
-    background-color: var(--color-primary-dark, #4f46e5);
+    background-color: var(--color-primary-dark);
 }
 
 .quick-save-btn-secondary {
-    background-color: var(--color-bg-gray, #f3f4f6);
-    color: var(--color-text-primary, #111827);
+    background-color: var(--color-bg);
+    color: var(--color-text-primary);
 }
 
 .quick-save-btn-secondary:hover:not(:disabled) {
-    background-color: var(--color-bg-hover, #e5e7eb);
+    background-color: var(--color-bg-hover);
 }
 
 .quick-save-btn-cancel {
     background-color: transparent;
-    color: var(--color-text-tertiary, #9ca3af);
+    color: var(--color-text-tertiary);
 }
 
 .quick-save-btn-cancel:hover:not(:disabled) {
-    color: var(--color-text-secondary, #6b7280);
+    color: var(--color-text-secondary);
 }
 
-/* 成功状态 */
+/* 成功状态 - 暖色调 */
 .quick-save-success {
     display: flex;
     flex-direction: column;
@@ -253,8 +253,8 @@
     width: 64px;
     height: 64px;
     border-radius: 50%;
-    background-color: #ecfdf5;
-    color: #10b981;
+    background-color: var(--color-primary-bg);
+    color: var(--color-primary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -264,7 +264,7 @@
 .quick-save-success-text {
     font-size: 18px;
     font-weight: 600;
-    color: var(--color-text-primary, #111827);
+    color: var(--color-text-primary);
 }
 
 /* 移动端适配 */

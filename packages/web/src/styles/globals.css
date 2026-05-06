@@ -1,29 +1,30 @@
 /**
- * 全局样式 - 简洁现代的 UI 风格
+ * 全局样式 - 温润书房风格
+ * 暖色调、文字优先、安静有质感
  */
 
 :root {
-    /* 颜色系统 */
-    --color-primary: #6366f1;
-    --color-primary-light: #818cf8;
-    --color-primary-dark: #4f46e5;
-    --color-primary-bg: #eef2ff;
+    /* 颜色系统 - 暖色系 */
+    --color-primary: #b45309;
+    --color-primary-light: #d97706;
+    --color-primary-dark: #92400e;
+    --color-primary-bg: #fef3c7;
 
-    --color-success: #10b981;
-    --color-warning: #f59e0b;
-    --color-danger: #ef4444;
+    --color-success: #4a7c59;
+    --color-warning: #b8860b;
+    --color-danger: #b75454;
 
-    --color-bg: #f8fafc;
-    --color-bg-white: #ffffff;
-    --color-bg-hover: #f1f5f9;
-    --color-bg-active: #e2e8f0;
+    --color-bg: #f6f2ec;
+    --color-bg-white: #fefcf8;
+    --color-bg-hover: #ede7dd;
+    --color-bg-active: #e5ddd3;
 
-    --color-border: #e2e8f0;
-    --color-border-light: #f1f5f9;
+    --color-border: #e5ddd3;
+    --color-border-light: #efe9e0;
 
-    --color-text-primary: #1e293b;
-    --color-text-secondary: #64748b;
-    --color-text-tertiary: #94a3b8;
+    --color-text-primary: #2c2416;
+    --color-text-secondary: #6b5e4e;
+    --color-text-tertiary: #9c8e7c;
     --color-text-inverse: #ffffff;
 
     /* 间距 */
@@ -34,16 +35,16 @@
     --spacing-xl: 24px;
     --spacing-2xl: 32px;
 
-    /* 圆角 */
+    /* 圆角 - 更柔和 */
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;
     --radius-full: 9999px;
 
-    /* 阴影 */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+    /* 阴影 - 更温暖柔和 */
+    --shadow-sm: 0 1px 2px rgba(44, 36, 22, 0.06);
+    --shadow-md: 0 4px 6px -1px rgba(44, 36, 22, 0.08), 0 2px 4px -2px rgba(44, 36, 22, 0.05);
+    --shadow-lg: 0 10px 15px -3px rgba(44, 36, 22, 0.08), 0 4px 6px -4px rgba(44, 36, 22, 0.04);
 
     /* 布局 */
     --sidebar-width: 280px;
@@ -55,8 +56,9 @@
     --transition-normal: 250ms ease;
 
     /* 字体 */
-    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-        'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    --font-serif: 'Noto Serif SC', 'Georgia', serif;
+    --font-display: 'DM Serif Display', 'Georgia', serif;
+    --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-size-xs: 12px;
     --font-size-sm: 13px;
     --font-size-md: 14px;
@@ -81,7 +83,7 @@ html {
 }
 
 body {
-    font-family: var(--font-family);
+    font-family: var(--font-sans);
     color: var(--color-text-primary);
     background-color: var(--color-bg);
     line-height: 1.6;

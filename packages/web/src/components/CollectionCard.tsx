@@ -1,8 +1,7 @@
 /**
  * CollectionCard 组件 - 收藏项卡片组件
- * 展示收藏项的封面图、标题、摘要、标签和时间
- * 支持批量选择模式
- * 支持拖拽功能
+ * 文字驱动设计，突出标题和摘要，附带来源徽章
+ * 支持批量选择模式和拖拽功能
  */
 
 import React from 'react';
@@ -30,6 +29,34 @@ interface CollectionCardProps {
 }
 
 /**
+ * 根据类型和 URL 检测来源徽章信息
+ */
+function getSourceBadge(collection: Collection): { label: string; icon: string } {
+    const url = collection.url || '';
+    const type = collection.type;
+
+    if (type === 'link') {
+        if (url.includes('mp.weixin.qq.com')) {
+            return { label: '公众号', icon: '📰' };
+        }
+        if (url.includes('twitter.com') || url.includes('x.com')) {
+            return { label: 'X', icon: '𝕏' };
+        }
+        if (url.includes('github.com')) {
+            return { label: 'GitHub', icon: '🐙' };
+        }
+        return { label: '网页', icon: '↗' };
+    }
+    if (type === 'file') {
+        return { label: '文件', icon: '📄' };
+    }
+    if (type === 'note') {
+        return { label: '笔记', icon: '✎' };
+    }
+    return { label: '网页', icon: '↗' };
+}
+
+/**
  * 收藏项卡片组件
  * @param props - 组件属性
  */
@@ -42,7 +69,6 @@ export default function CollectionCard({
     onSelect,
     draggable = false,
 }: CollectionCardProps) {
-    // 拖拽功能
     const { attributes, isDragging, listeners, setNodeRef, transform } = useDraggable({
         id: `collection-${collection.id}`,
         data: { type: 'collection', collection },
@@ -57,6 +83,7 @@ export default function CollectionCard({
         : {};
 
     const handleClick = () => {
+        if (isDragging) return;
         onClick?.(collection);
     };
 
@@ -72,44 +99,13 @@ export default function CollectionCard({
         }
     };
 
-    /**
-     * checkbox 点击事件，阻止冒泡避免触发卡片点击
-     */
     const handleSelectClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         onSelect?.(collection.id);
     };
 
-    // 根据类型获取图标
-    const getTypeIcon = () => {
-        switch (collection.type) {
-            case 'link':
-                return (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                    </svg>
-                );
-            case 'file':
-                return (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
-                    </svg>
-                );
-            case 'note':
-                return (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="17" y1="10" x2="3" y2="10" />
-                        <line x1="21" y1="6" x2="3" y2="6" />
-                        <line x1="21" y1="14" x2="3" y2="14" />
-                        <line x1="17" y1="18" x2="3" y2="18" />
-                    </svg>
-                );
-            default:
-                return null;
-        }
-    };
+    const source = getSourceBadge(collection);
+    const hasThumbnail = !!collection.thumbnailUrl;
 
     return (
         <div
@@ -120,6 +116,9 @@ export default function CollectionCard({
             {...(draggable ? listeners : {})}
             {...(draggable ? attributes : {})}
         >
+            {/* 顶部赭石色装饰条 */}
+            <div className="collection-card-accent" />
+
             {/* 批量选择 checkbox */}
             {selectable && (
                 <div className="collection-card-checkbox" onClick={handleSelectClick}>
@@ -139,58 +138,57 @@ export default function CollectionCard({
                 </div>
             )}
 
-            {/* 封面图区域 */}
-            <div className="collection-card-cover">
-                {collection.thumbnailUrl ? (
+            {/* 封面缩略图（可选） */}
+            {hasThumbnail && (
+                <div className="collection-card-cover">
                     <img
-                        src={collection.thumbnailUrl}
+                        src={collection.thumbnailUrl ?? undefined}
                         alt={collection.title}
                         className="collection-card-thumbnail"
                         loading="lazy"
                     />
-                ) : (
-                    <div className="collection-card-placeholder">
-                        {getTypeIcon()}
-                    </div>
-                )}
-
-                {/* 星标按钮 */}
-                <button
-                    className={`collection-card-favorite ${collection.isFavorite ? 'active' : ''}`}
-                    onClick={handleFavoriteClick}
-                    title={collection.isFavorite ? '取消星标' : '添加星标'}
-                >
-                    <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill={collection.isFavorite ? 'currentColor' : 'none'}
-                        stroke="currentColor"
-                        strokeWidth="2"
-                    >
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                </button>
-
-                {/* 类型标签 */}
-                <span className="collection-card-type">
-                    {getTypeIcon()}
-                    {collection.type === 'link' ? '网页' : collection.type === 'file' ? '文件' : '笔记'}
-                </span>
-            </div>
+                </div>
+            )}
 
             {/* 内容区域 */}
             <div className="collection-card-body">
+                {/* 顶部元信息行：来源徽章 + 星标 */}
+                <div className="collection-card-top-row">
+                    <span className="collection-card-source">
+                        <span className="collection-card-source-icon">{source.icon}</span>
+                        {source.label}
+                    </span>
+                    <button
+                        className={`collection-card-favorite ${collection.isFavorite ? 'active' : ''}`}
+                        onClick={handleFavoriteClick}
+                        title={collection.isFavorite ? '取消星标' : '添加星标'}
+                    >
+                        <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill={collection.isFavorite ? 'currentColor' : 'none'}
+                            stroke="currentColor"
+                            strokeWidth="2"
+                        >
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* 标题 */}
                 <h3 className="collection-card-title" title={collection.title}>
                     {collection.title}
                 </h3>
 
+                {/* 描述/摘要 */}
                 {collection.description && (
                     <p className="collection-card-desc">
-                        {truncateText(collection.description, 80)}
+                        {truncateText(collection.description, 100)}
                     </p>
                 )}
 
+                {/* 链接域名 */}
                 {collection.url && (
                     <p className="collection-card-url" onClick={handleUrlClick} title={collection.url}>
                         {(() => {
@@ -203,29 +201,29 @@ export default function CollectionCard({
                     </p>
                 )}
 
-                {/* 标签 */}
-                {collection.tags.length > 0 && (
-                    <div className="collection-card-tags">
-                        {collection.tags.slice(0, 3).map((tag) => (
-                            <span
-                                key={tag.id}
-                                className="collection-card-tag"
-                                style={{ borderColor: tag.color, color: tag.color }}
-                            >
-                                {tag.name}
-                            </span>
-                        ))}
-                        {collection.tags.length > 3 && (
-                            <span className="collection-card-tag-more">
-                                +{collection.tags.length - 3}
-                            </span>
-                        )}
-                    </div>
-                )}
-
-                {/* 时间 */}
-                <div className="collection-card-time">
-                    {formatRelativeTime(collection.createdAt)}
+                {/* 底部：标签 + 时间 */}
+                <div className="collection-card-footer">
+                    {collection.tags.length > 0 && (
+                        <div className="collection-card-tags">
+                            {collection.tags.slice(0, 3).map((tag) => (
+                                <span
+                                    key={tag.id}
+                                    className="collection-card-tag"
+                                    style={{ borderColor: tag.color, color: tag.color }}
+                                >
+                                    {tag.name}
+                                </span>
+                            ))}
+                            {collection.tags.length > 3 && (
+                                <span className="collection-card-tag-more">
+                                    +{collection.tags.length - 3}
+                                </span>
+                            )}
+                        </div>
+                    )}
+                    <span className="collection-card-time">
+                        {formatRelativeTime(collection.createdAt)}
+                    </span>
                 </div>
             </div>
         </div>

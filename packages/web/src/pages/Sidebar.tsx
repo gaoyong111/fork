@@ -1,21 +1,19 @@
 /**
  * Sidebar 页面组件 - 侧边栏
  * 包含全部收藏入口、文件夹树和标签列表
- * 支持拖放收藏到文件夹
  */
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import FolderTree from '../components/FolderTree';
 import TagList from '../components/TagList';
+import TagManageModal from '../components/TagManageModal';
 import { useToast } from '../contexts/ToastContext';
 import type { Folder, Tag } from '../types';
 import * as api from '../services/api';
 import './Sidebar.css';
 
 interface SidebarProps {
-    /** 拖拽收藏到文件夹的回调 */
-    onDropCollection?: (collectionId: string, folderId: string) => void;
     /** 文件夹排序完成回调 */
     onFolderReorder?: (folderId: string, newSortOrder: number) => void;
 }
@@ -24,8 +22,8 @@ interface SidebarProps {
  * 侧边栏页面组件
  * 提供文件夹导航、标签筛选和全部收藏入口
  */
-export default function Sidebar({ onDropCollection, onFolderReorder }: SidebarProps) {
-    const [searchParams, setSearchParams] = useSearchParams();
+export default function Sidebar({ onFolderReorder }: SidebarProps) {
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const location = useLocation();
     const { showToast } = useToast();
@@ -34,6 +32,7 @@ export default function Sidebar({ onDropCollection, onFolderReorder }: SidebarPr
     const [tags, setTags] = useState<Tag[]>([]);
     const [loading, setLoading] = useState(true);
     const [trashCount, setTrashCount] = useState(0);
+    const [showTagManage, setShowTagManage] = useState(false);
 
     // 内联创建文件夹状态
     const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -51,7 +50,50 @@ export default function Sidebar({ onDropCollection, onFolderReorder }: SidebarPr
     }, []);
 
     /**
-     * 加载侧边栏数据（文件夹树、标签列表和回收站数量）
+     * 静默刷新侧边栏数据（不显示加载状态，避免闪烁）
+     */
+    async function refreshSidebarData() {
+        try {
+            const [folderData, tagData, trashData] = await Promise.all([
+                api.getFolderTree(),
+                api.getTags(),
+                api.getTrashCollections({ page: 1, pageSize: 1 }).catch(() => null),
+            ]);
+            setFolders(folderData);
+            setTags(tagData);
+            if (trashData) {
+                setTrashCount(trashData.pagination.total);
+            }
+        } catch (err) {
+            console.error('刷新侧边栏数据失败:', err);
+        }
+    }
+
+    /**
+     * 监听回收站数据变更事件，静默刷新
+     */
+    useEffect(() => {
+        const handleTrashUpdated = () => {
+            refreshSidebarData();
+        };
+        window.addEventListener('trash-updated', handleTrashUpdated);
+        return () => window.removeEventListener('trash-updated', handleTrashUpdated);
+    }, []);
+
+    /**
+     * 离开回收站页面时静默刷新
+     */
+    const prevPathRef = useRef(location.pathname);
+    useEffect(() => {
+        const prevPath = prevPathRef.current;
+        prevPathRef.current = location.pathname;
+        if (prevPath === '/trash' && location.pathname !== '/trash') {
+            refreshSidebarData();
+        }
+    }, [location.pathname]);
+
+    /**
+     * 加载侧边栏数据（首次加载，带 loading 状态）
      */
     async function loadSidebarData() {
         try {
@@ -77,48 +119,38 @@ export default function Sidebar({ onDropCollection, onFolderReorder }: SidebarPr
      * 选中文件夹
      */
     const handleSelectFolder = (folderId: string | null) => {
-        const newParams = new URLSearchParams(searchParams);
-        newParams.delete('tag');
-        newParams.delete('favorite');
+        const newParams = new URLSearchParams();
         if (folderId) {
             newParams.set('folder', folderId);
-        } else {
-            newParams.delete('folder');
         }
-        setSearchParams(newParams);
+        const qs = newParams.toString();
+        navigate(qs ? `/?${qs}` : '/');
     };
 
     /**
      * 选中标签
      */
     const handleSelectTag = (tagId: string | null) => {
-        const newParams = new URLSearchParams(searchParams);
-        newParams.delete('folder');
-        newParams.delete('favorite');
+        const newParams = new URLSearchParams();
         if (tagId) {
             newParams.set('tag', tagId);
-        } else {
-            newParams.delete('tag');
         }
-        setSearchParams(newParams);
+        const qs = newParams.toString();
+        navigate(qs ? `/?${qs}` : '/');
     };
 
     /**
      * 显示全部收藏
      */
     const handleShowAll = () => {
-        setSearchParams({});
+        navigate('/');
     };
 
     /**
      * 显示星标收藏
      */
     const handleShowFavorites = () => {
-        const newParams = new URLSearchParams(searchParams);
-        newParams.delete('folder');
-        newParams.delete('tag');
-        newParams.set('favorite', 'true');
-        setSearchParams(newParams);
+        navigate('/?favorite=true');
     };
 
     /**
@@ -224,7 +256,6 @@ export default function Sidebar({ onDropCollection, onFolderReorder }: SidebarPr
                 selectedFolderId={currentFolderId}
                 onSelectFolder={handleSelectFolder}
                 onCreateFolder={handleCreateFolder}
-                onDropCollection={onDropCollection}
                 onFolderReorder={onFolderReorder}
                 onFolderUpdated={loadSidebarData}
             />
@@ -252,7 +283,7 @@ export default function Sidebar({ onDropCollection, onFolderReorder }: SidebarPr
                 tags={tags}
                 selectedTagId={currentTagId}
                 onSelectTag={handleSelectTag}
-                onTagUpdated={loadSidebarData}
+                onManageTags={() => setShowTagManage(true)}
             />
 
             {/* 回收站入口 - 固定在底部 */}
@@ -271,6 +302,14 @@ export default function Sidebar({ onDropCollection, onFolderReorder }: SidebarPr
                     )}
                 </button>
             </div>
+
+            {showTagManage && (
+                <TagManageModal
+                    tags={tags}
+                    onClose={() => setShowTagManage(false)}
+                    onTagUpdated={refreshSidebarData}
+                />
+            )}
         </div>
     );
 }

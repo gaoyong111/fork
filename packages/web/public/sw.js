@@ -5,9 +5,10 @@
  * - API 请求：网络优先（Network First）
  */
 
-const CACHE_NAME = 'favorites-v1';
-const STATIC_CACHE = 'favorites-static-v1';
-const API_CACHE = 'favorites-api-v1';
+// 缓存版本号，修改此值可强制更新所有缓存
+const CACHE_NAME = 'favorites-v2';
+const STATIC_CACHE = 'favorites-static-v2';
+const API_CACHE = 'favorites-api-v2';
 
 // 需要缓存的静态资源
 const STATIC_ASSETS = [
@@ -129,7 +130,7 @@ async function cacheFirst(request) {
 async function networkFirst(request) {
     try {
         const response = await fetch(request);
-        if (response.ok) {
+        if (response.ok && request.method === 'GET') {
             const cache = await caches.open(API_CACHE);
             cache.put(request, response.clone());
         }

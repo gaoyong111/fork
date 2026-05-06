@@ -23,6 +23,22 @@
     letter-spacing: 0.5px;
 }
 
+.tag-list-manage-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-tertiary);
+    transition: all var(--transition-fast);
+}
+
+.tag-list-manage-btn:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+}
+
 .tag-list-items {
     display: flex;
     flex-wrap: wrap;
@@ -42,6 +58,8 @@
     border: 1px solid transparent;
     transition: all var(--transition-fast);
     max-width: 100%;
+    cursor: pointer;
+    font-family: inherit;
 }
 
 .tag-list-item:hover {
@@ -78,110 +96,4 @@
     font-size: var(--font-size-xs);
     color: var(--color-text-tertiary);
     padding: var(--spacing-sm) var(--spacing-lg);
-}
-
-/* 标签操作按钮 */
-.tag-list-item-actions {
-    display: none;
-    align-items: center;
-    gap: 2px;
-    flex-shrink: 0;
-    margin-left: 2px;
-}
-
-.tag-list-item:hover .tag-list-item-actions {
-    display: flex;
-}
-
-.tag-list-action-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    border-radius: var(--radius-sm);
-    color: var(--color-text-tertiary);
-    transition: all var(--transition-fast);
-}
-
-.tag-list-action-btn:hover {
-    color: var(--color-text-secondary);
-}
-
-.tag-list-edit-btn:hover {
-    color: var(--color-primary);
-}
-
-.tag-list-delete-btn:hover {
-    color: var(--color-danger, #ef4444);
-}
-
-/* 标签编辑表单 */
-.tag-list-edit-form {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 6px 8px;
-    background-color: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    animation: tagEditFadeIn 0.15s ease-out;
-}
-
-.tag-list-edit-input {
-    padding: 4px 8px;
-    font-size: var(--font-size-xs);
-    border: 1px solid var(--color-primary);
-    border-radius: 4px;
-    outline: none;
-    background: #fff;
-    color: var(--color-text-primary);
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.tag-list-edit-input:focus {
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-}
-
-.tag-list-edit-input:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-/* 颜色选择器 */
-.tag-color-picker {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-}
-
-.tag-color-dot {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    flex-shrink: 0;
-}
-
-.tag-color-dot:hover {
-    transform: scale(1.2);
-}
-
-.tag-color-dot.active {
-    border-color: var(--color-text-primary);
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
-}
-
-@keyframes tagEditFadeIn {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
 }

@@ -1,11 +1,10 @@
 /**
  * FolderTree 组件 - 文件夹树形组件
  * 支持展开/折叠、选中、创建子文件夹、重命名、删除
- * 支持拖放收藏到文件夹、文件夹拖拽排序
+ * 支持文件夹拖拽排序
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useDroppable } from '@dnd-kit/core';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useToast } from '../contexts/ToastContext';
@@ -22,8 +21,6 @@ interface FolderTreeProps {
     onSelectFolder: (folderId: string | null) => void;
     /** 创建文件夹回调 */
     onCreateFolder: (parentId: string | null) => void;
-    /** 拖拽收藏到文件夹的回调 */
-    onDropCollection?: (collectionId: string, folderId: string) => void;
     /** 文件夹排序完成回调 */
     onFolderReorder?: (folderId: string, newSortOrder: number) => void;
     /** 文件夹变更后刷新回调 */
@@ -32,7 +29,7 @@ interface FolderTreeProps {
 
 /**
  * 文件夹树节点组件
- * 同时支持 Droppable（接收收藏拖放）和 Sortable（文件夹排序）
+ * 支持 Sortable（文件夹排序）
  * @param props - 组件属性
  */
 function FolderTreeNode({
@@ -40,7 +37,6 @@ function FolderTreeNode({
     selectedFolderId,
     onSelectFolder,
     onCreateFolder,
-    onDropCollection,
     onFolderReorder,
     onFolderUpdated,
     depth,
@@ -49,7 +45,6 @@ function FolderTreeNode({
     selectedFolderId: string | null;
     onSelectFolder: (folderId: string | null) => void;
     onCreateFolder: (parentId: string | null) => void;
-    onDropCollection?: (collectionId: string, folderId: string) => void;
     onFolderReorder?: (folderId: string, newSortOrder: number) => void;
     onFolderUpdated?: () => void;
     depth: number;
@@ -66,13 +61,6 @@ function FolderTreeNode({
     const hasChildren = folder.children && folder.children.length > 0;
     const isSelected = selectedFolderId === folder.id;
     const isMenuOpen = menuOpenId === folder.id;
-
-    // 拖放目标：接收收藏项拖入
-    const { setNodeRef: setDroppableRef, isOver } = useDroppable({
-        id: `folder-drop-${folder.id}`,
-        data: { type: 'folder', folder },
-        disabled: !onDropCollection,
-    });
 
     // 排序：文件夹拖拽排序
     const {
@@ -110,14 +98,6 @@ function FolderTreeNode({
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [isMenuOpen]);
-
-    /**
-     * 合并 ref：同时支持 droppable 和 sortable
-     */
-    const handleNodeRef = (node: HTMLElement | null) => {
-        setDroppableRef(node);
-        setSortableRef(node);
-    };
 
     const sortableStyle: React.CSSProperties = {
         transform: CSS.Translate.toString(sortableTransform),
@@ -234,8 +214,8 @@ function FolderTreeNode({
     return (
         <li className="folder-tree-node">
             <div
-                ref={handleNodeRef}
-                className={`folder-tree-item ${isSelected ? 'selected' : ''} ${isOver ? 'drag-over' : ''}`}
+                ref={setSortableRef}
+                className={`folder-tree-item ${isSelected ? 'selected' : ''}`}
                 style={sortableStyle}
                 onClick={handleClick}
             >
@@ -376,7 +356,6 @@ function FolderTreeNode({
                             selectedFolderId={selectedFolderId}
                             onSelectFolder={onSelectFolder}
                             onCreateFolder={onCreateFolder}
-                            onDropCollection={onDropCollection}
                             onFolderReorder={onFolderReorder}
                             onFolderUpdated={onFolderUpdated}
                             depth={depth + 1}
@@ -397,7 +376,6 @@ export default function FolderTree({
     selectedFolderId,
     onSelectFolder,
     onCreateFolder,
-    onDropCollection,
     onFolderReorder,
     onFolderUpdated,
 }: FolderTreeProps) {
@@ -432,7 +410,6 @@ export default function FolderTree({
                         selectedFolderId={selectedFolderId}
                         onSelectFolder={onSelectFolder}
                         onCreateFolder={onCreateFolder}
-                        onDropCollection={onDropCollection}
                         onFolderReorder={onFolderReorder}
                         onFolderUpdated={onFolderUpdated}
                         depth={0}

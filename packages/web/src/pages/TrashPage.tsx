@@ -57,6 +57,7 @@ export default function TrashPage() {
         try {
             await api.restoreCollection(id);
             showToast('已恢复', 'success');
+            window.dispatchEvent(new CustomEvent('trash-updated'));
             await loadTrashCollections();
         } catch (err) {
             console.error('恢复失败:', err);
@@ -79,6 +80,7 @@ export default function TrashPage() {
         try {
             await api.permanentDeleteCollection(id);
             showToast('已永久删除', 'success');
+            window.dispatchEvent(new CustomEvent('trash-updated'));
             await loadTrashCollections();
         } catch (err) {
             console.error('永久删除失败:', err);
@@ -101,6 +103,7 @@ export default function TrashPage() {
         try {
             await api.restoreAllCollections();
             showToast('已恢复全部', 'success');
+            window.dispatchEvent(new CustomEvent('trash-updated'));
             await loadTrashCollections();
         } catch (err) {
             console.error('恢复全部失败:', err);
@@ -124,6 +127,7 @@ export default function TrashPage() {
         try {
             await api.emptyTrash();
             showToast('回收站已清空', 'success');
+            window.dispatchEvent(new CustomEvent('trash-updated'));
             await loadTrashCollections();
         } catch (err) {
             console.error('清空回收站失败:', err);

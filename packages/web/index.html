@@ -10,10 +10,18 @@
         <link rel="manifest" href="/manifest.json" />
 
         <!-- 主题色 -->
-        <meta name="theme-color" content="#6366f1" />
+        <meta name="theme-color" content="#b45309" />
+
+        <!-- Google Fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Noto+Serif+SC:wght@400;600;700&display=swap"
+            rel="stylesheet"
+        />
 
         <!-- Apple 移动端配置 -->
-        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="收藏夹" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
@@ -22,14 +30,24 @@
         <div id="root"></div>
         <script type="module" src="/src/main.tsx"></script>
 
-        <!-- Service Worker 注册 -->
+        <!-- Service Worker 注册（仅在非开发环境） -->
         <script>
             if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function () {
-                    navigator.serviceWorker.register('/sw.js').catch(function (err) {
-                        console.error('Service Worker 注册失败:', err);
+                if (location.hostname.includes('localhost')) {
+                    // 开发环境下注销已有的 Service Worker 并清除缓存
+                    navigator.serviceWorker.getRegistrations().then(function (regs) {
+                        regs.forEach(function (r) { r.unregister(); });
                     });
-                });
+                    caches.keys().then(function (names) {
+                        names.forEach(function (n) { caches.delete(n); });
+                    });
+                } else {
+                    window.addEventListener('load', function () {
+                        navigator.serviceWorker.register('/sw.js').catch(function (err) {
+                            console.error('Service Worker 注册失败:', err);
+                        });
+                    });
+                }
             }
         </script>
     </body>

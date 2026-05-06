@@ -1,5 +1,5 @@
 /**
- * Sidebar 页面样式
+ * Sidebar 页面样式 - 温润书房风格
  */
 
 .sidebar {
@@ -59,12 +59,12 @@
     border: 1px solid var(--color-primary);
     border-radius: 4px;
     outline: none;
-    background: #fff;
+    background-color: var(--color-bg-white);
     color: var(--color-text-primary);
 }
 
 .sidebar-inline-folder-input:focus {
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    box-shadow: 0 0 0 2px var(--color-primary-bg);
 }
 
 .sidebar-inline-folder-input:disabled {
@@ -118,7 +118,7 @@
     height: 18px;
     padding: 0 5px;
     border-radius: 9px;
-    background-color: var(--color-danger, #ef4444);
+    background-color: var(--color-danger);
     color: white;
     font-size: 11px;
     font-weight: 600;

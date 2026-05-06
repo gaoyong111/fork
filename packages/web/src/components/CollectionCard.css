@@ -1,20 +1,22 @@
 /**
- * CollectionCard 组件样式
+ * CollectionCard 组件样式 - 文字驱动卡片风格
  */
 
 .collection-card {
     background-color: var(--color-bg-white);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
     border: 1px solid var(--color-border-light);
     overflow: hidden;
     cursor: pointer;
     transition: box-shadow var(--transition-fast), transform var(--transition-fast), border-color var(--transition-fast);
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .collection-card:hover {
     box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
+    border-color: var(--color-border);
 }
 
 .collection-card-selected {
@@ -26,12 +28,19 @@
     box-shadow: var(--shadow-md), 0 0 0 2px var(--color-primary-bg);
 }
 
-/* 封面区域 */
+/* 顶部装饰条 */
+.collection-card-accent {
+    height: 3px;
+    background-color: var(--color-primary);
+    flex-shrink: 0;
+}
+
+/* 封面缩略图（可选，窄条展示） */
 .collection-card-cover {
-    position: relative;
-    height: 140px;
-    background-color: var(--color-bg);
+    height: 120px;
     overflow: hidden;
+    flex-shrink: 0;
+    background-color: var(--color-bg);
 }
 
 .collection-card-thumbnail {
@@ -40,88 +49,90 @@
     object-fit: cover;
 }
 
-.collection-card-placeholder {
-    width: 100%;
-    height: 100%;
+/* 内容区域 */
+.collection-card-body {
+    padding: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    flex: 1;
+}
+
+/* 顶部行：来源徽章 + 星标 */
+.collection-card-top-row {
     display: flex;
     align-items: center;
-    justify-content: center;
-    color: var(--color-text-tertiary);
-    background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-bg-hover) 100%);
+    justify-content: space-between;
+    margin-bottom: var(--spacing-xs);
 }
 
-.collection-card-favorite {
-    position: absolute;
-    top: var(--spacing-sm);
-    right: var(--spacing-sm);
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-full);
-    background-color: rgba(255, 255, 255, 0.85);
-    color: var(--color-text-tertiary);
-    transition: all var(--transition-fast);
-    opacity: 0;
-}
-
-.collection-card:hover .collection-card-favorite {
-    opacity: 1;
-}
-
-.collection-card-favorite.active {
-    opacity: 1;
-    color: var(--color-warning);
-}
-
-.collection-card-favorite:hover {
-    background-color: rgba(255, 255, 255, 1);
-    transform: scale(1.1);
-}
-
-.collection-card-type {
-    position: absolute;
-    bottom: var(--spacing-sm);
-    left: var(--spacing-sm);
+/* 来源徽章 */
+.collection-card-source {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     padding: 2px 8px;
     border-radius: var(--radius-full);
-    background-color: rgba(255, 255, 255, 0.85);
-    font-size: 11px;
+    background-color: var(--color-bg);
+    font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
+    font-weight: 500;
+    line-height: 1.4;
 }
 
-/* 内容区域 */
-.collection-card-body {
-    padding: var(--spacing-lg);
+.collection-card-source-icon {
+    font-size: 11px;
+    line-height: 1;
 }
 
+/* 星标按钮 */
+.collection-card-favorite {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-full);
+    color: var(--color-text-tertiary);
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.collection-card-favorite:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-warning);
+    transform: scale(1.1);
+}
+
+.collection-card-favorite.active {
+    color: var(--color-warning);
+}
+
+/* 标题 — 使用衬线体 */
 .collection-card-title {
-    font-size: var(--font-size-md);
+    font-family: var(--font-serif);
+    font-size: var(--font-size-lg);
     font-weight: 600;
     color: var(--color-text-primary);
     line-height: 1.4;
-    margin-bottom: var(--spacing-sm);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
+/* 描述/摘要 */
 .collection-card-desc {
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
-    line-height: 1.5;
-    margin-bottom: var(--spacing-sm);
+    line-height: 1.6;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
+/* 链接域名 */
 .collection-card-url {
     font-size: var(--font-size-xs);
     color: var(--color-text-tertiary);
@@ -129,7 +140,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    margin-bottom: var(--spacing-sm);
     transition: color var(--transition-fast);
 }
 
@@ -137,17 +147,27 @@
     color: var(--color-primary);
 }
 
+/* 底部：标签 + 时间 */
+.collection-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-top: auto;
+    padding-top: var(--spacing-sm);
+}
+
 /* 标签 */
 .collection-card-tags {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    margin-bottom: var(--spacing-md);
 }
 
 .collection-card-tag {
     display: inline-block;
-    padding: 1px 8px;
+    padding: 1px 7px;
     border-radius: var(--radius-full);
     font-size: 11px;
     border: 1px solid;
@@ -161,16 +181,18 @@
     color: var(--color-text-tertiary);
 }
 
+/* 时间 */
 .collection-card-time {
     font-size: var(--font-size-xs);
     color: var(--color-text-tertiary);
+    white-space: nowrap;
 }
 
 /* 批量选择 checkbox */
 .collection-card-checkbox {
     position: absolute;
-    top: var(--spacing-sm);
-    left: var(--spacing-sm);
+    top: var(--spacing-md);
+    left: var(--spacing-md);
     z-index: 10;
     width: 22px;
     height: 22px;

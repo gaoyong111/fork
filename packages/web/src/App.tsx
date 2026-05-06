@@ -77,8 +77,7 @@ export default function App() {
 
     /**
      * 处理拖拽结束事件
-     * - 收藏拖到文件夹：移动收藏到目标文件夹
-     * - 文件夹排序：更新文件夹排序
+     * 处理文件夹排序
      */
     const handleDragEnd = useCallback(async (event: DragEndEvent) => {
         const { active, over } = event;
@@ -87,19 +86,6 @@ export default function App() {
 
         const activeData = active.data.current;
         const overData = over.data.current;
-
-        // 收藏拖到文件夹
-        if (activeData?.type === 'collection' && overData?.type === 'folder') {
-            const collectionId = activeData.collection.id;
-            const folderId = overData.folder.id;
-
-            try {
-                await api.moveCollection(collectionId, folderId);
-                setRefreshKey((prev) => prev + 1);
-            } catch (err) {
-                console.error('移动收藏失败:', err);
-            }
-        }
 
         // 文件夹排序
         if (activeData?.type === 'folder-sort' && overData?.type === 'folder-sort') {
@@ -118,21 +104,6 @@ export default function App() {
             }
         }
     }, []);
-
-    /**
-     * 拖拽收藏到文件夹的回调（传递给 Sidebar）
-     */
-    const handleDropCollection = useCallback(
-        async (collectionId: string, folderId: string) => {
-            try {
-                await api.moveCollection(collectionId, folderId);
-                setRefreshKey((prev) => prev + 1);
-            } catch (err) {
-                console.error('移动收藏失败:', err);
-            }
-        },
-        [],
-    );
 
     /**
      * 文件夹排序完成回调（传递给 Sidebar）
@@ -164,7 +135,6 @@ export default function App() {
                     <Layout
                         sidebar={
                             <Sidebar
-                                onDropCollection={handleDropCollection}
                                 onFolderReorder={handleFolderReorder}
                             />
                         }

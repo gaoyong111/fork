@@ -1,5 +1,5 @@
 /**
- * PWAInstallPrompt 组件样式
+ * PWAInstallPrompt 组件样式 - 温润书房风格
  * 顶部横幅引导设计
  */
 
@@ -9,10 +9,10 @@
     left: 0;
     right: 0;
     z-index: 2000;
-    background-color: var(--color-primary, #6366f1);
-    color: #ffffff;
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
     animation: pwa-install-slide-down 0.3s ease-out;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-md);
 }
 
 @keyframes pwa-install-slide-down {
@@ -70,8 +70,8 @@
 .pwa-install-btn {
     padding: 6px 16px;
     border-radius: 6px;
-    background-color: #ffffff;
-    color: var(--color-primary, #6366f1);
+    background-color: var(--color-text-inverse);
+    color: var(--color-primary);
     font-size: 13px;
     font-weight: 600;
     border: none;
@@ -82,6 +82,7 @@
 
 .pwa-install-btn:hover {
     opacity: 0.9;
+    color: var(--color-primary-dark);
 }
 
 .pwa-install-ios-hint {
@@ -95,7 +96,7 @@
     height: 28px;
     border-radius: 50%;
     background-color: rgba(255, 255, 255, 0.15);
-    color: #ffffff;
+    color: var(--color-text-inverse);
     border: none;
     display: flex;
     align-items: center;

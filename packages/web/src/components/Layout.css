@@ -1,5 +1,5 @@
 /**
- * Layout 组件样式
+ * Layout 组件样式 - 温润书房风格
  */
 
 .layout {
@@ -58,6 +58,7 @@
 }
 
 .layout-header-title {
+    font-family: var(--font-serif);
     font-size: var(--font-size-lg);
     font-weight: 600;
     color: var(--color-text-primary);
@@ -118,10 +119,10 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background-color: var(--color-primary, #6366f1);
-    color: #ffffff;
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
     border: none;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    box-shadow: 0 4px 12px rgba(180, 83, 9, 0.35);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -132,7 +133,7 @@
 
 .layout-fab:hover {
     transform: scale(1.05);
-    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.5);
+    box-shadow: 0 6px 16px rgba(180, 83, 9, 0.45);
 }
 
 .layout-fab:active {

@@ -137,6 +137,7 @@ export default function CollectionDetail() {
 
         try {
             await api.deleteCollection(collection.id);
+            window.dispatchEvent(new CustomEvent('trash-updated'));
             navigate('/');
         } catch (err) {
             console.error('删除失败:', err);
@@ -251,6 +252,7 @@ export default function CollectionDetail() {
 
             {/* 内容区域 */}
             <div className="collection-detail-content">
+                <div className="collection-detail-content-inner">
                 {editing ? (
                     /* 编辑模式 */
                     <div className="detail-edit-form">
@@ -421,6 +423,7 @@ export default function CollectionDetail() {
                         )}
                     </div>
                 )}
+                </div>
             </div>
         </div>
     );

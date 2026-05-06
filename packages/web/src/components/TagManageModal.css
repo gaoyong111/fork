@@ -1,0 +1,268 @@
+/**
+ * TagManageModal 组件样式 - 标签管理弹窗
+ */
+
+.tag-manage-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(44, 36, 22, 0.5);
+    animation: tagManageOverlayIn 0.2s ease-out;
+}
+
+.tag-manage-modal {
+    background-color: var(--color-bg-white);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(44, 36, 22, 0.25);
+    width: 420px;
+    max-width: 90vw;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    animation: tagManageModalIn 0.25s ease-out;
+}
+
+.tag-manage-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-lg) var(--spacing-xl);
+    border-bottom: 1px solid var(--color-border-light);
+    flex-shrink: 0;
+}
+
+.tag-manage-header h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.tag-manage-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-tertiary);
+    transition: all var(--transition-fast);
+}
+
+.tag-manage-close-btn:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+}
+
+.tag-manage-body {
+    padding: var(--spacing-md) var(--spacing-xl);
+    overflow-y: auto;
+    flex: 1;
+}
+
+.tag-manage-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-fast);
+    min-height: 40px;
+}
+
+.tag-manage-item:hover {
+    background-color: var(--color-bg);
+}
+
+.tag-manage-item-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.tag-manage-item-name {
+    flex: 1;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tag-manage-item-count {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+    flex-shrink: 0;
+    margin-right: var(--spacing-sm);
+}
+
+.tag-manage-item-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.tag-manage-item:hover .tag-manage-item-actions {
+    opacity: 1;
+}
+
+.tag-manage-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-tertiary);
+    transition: all var(--transition-fast);
+}
+
+.tag-manage-action-btn:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+}
+
+.tag-manage-action-btn.edit:hover {
+    color: var(--color-primary);
+}
+
+.tag-manage-action-btn.delete:hover {
+    color: var(--color-danger);
+}
+
+/* 编辑表单 */
+.tag-manage-edit-form {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 4px 0;
+    width: 100%;
+}
+
+.tag-manage-edit-input {
+    flex: 1;
+    padding: 4px 8px;
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--color-primary);
+    border-radius: 4px;
+    outline: none;
+    background: var(--color-bg-white);
+    color: var(--color-text-primary);
+    min-width: 0;
+}
+
+.tag-manage-edit-input:focus {
+    box-shadow: 0 0 0 2px var(--color-primary-bg);
+}
+
+.tag-manage-edit-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.tag-manage-color-picker {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.tag-manage-color-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.tag-manage-color-dot:hover {
+    transform: scale(1.2);
+}
+
+.tag-manage-color-dot.active {
+    border-color: var(--color-text-primary);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+}
+
+.tag-manage-edit-confirm,
+.tag-manage-edit-cancel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+    transition: all var(--transition-fast);
+}
+
+.tag-manage-edit-confirm {
+    color: var(--color-primary);
+}
+
+.tag-manage-edit-confirm:hover {
+    background-color: var(--color-primary-bg);
+}
+
+.tag-manage-edit-cancel {
+    color: var(--color-text-tertiary);
+}
+
+.tag-manage-edit-cancel:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+}
+
+.tag-manage-empty {
+    text-align: center;
+    padding: var(--spacing-xl) 0;
+    color: var(--color-text-tertiary);
+    font-size: var(--font-size-sm);
+}
+
+.tag-manage-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--spacing-lg) var(--spacing-xl);
+    border-top: 1px solid var(--color-border-light);
+    flex-shrink: 0;
+}
+
+.tag-manage-done-btn {
+    padding: var(--spacing-sm) var(--spacing-xl);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-md);
+    font-weight: 500;
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+    transition: background-color var(--transition-fast);
+}
+
+.tag-manage-done-btn:hover {
+    background-color: var(--color-primary-dark);
+}
+
+@keyframes tagManageOverlayIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes tagManageModalIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
