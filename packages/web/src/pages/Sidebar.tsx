@@ -1,6 +1,7 @@
 /**
  * Sidebar 页面组件 - 侧边栏
  * 包含全部收藏入口、文件夹树和标签列表
+ * 文件夹和标签数据从 Zustand store 读取，不再独立 fetch
  */
 
 import { useEffect, useState, useRef } from 'react';
@@ -9,7 +10,8 @@ import FolderTree from '../components/FolderTree';
 import TagList from '../components/TagList';
 import TagManageModal from '../components/TagManageModal';
 import { useToast } from '../contexts/ToastContext';
-import type { Folder, Tag } from '../types';
+import { useFolderStore, type FolderState } from '../store/folderStore';
+import { useTagStore, type TagState } from '../store/tagStore';
 import * as api from '../services/api';
 import './Sidebar.css';
 
@@ -28,8 +30,13 @@ export default function Sidebar({ onFolderReorder }: SidebarProps) {
     const location = useLocation();
     const { showToast } = useToast();
 
-    const [folders, setFolders] = useState<Folder[]>([]);
-    const [tags, setTags] = useState<Tag[]>([]);
+    const folders = useFolderStore((s: FolderState) => s.folders);
+    const fetchFolders = useFolderStore((s: FolderState) => s.fetchFolders);
+    const invalidateFolders = useFolderStore((s: FolderState) => s.invalidate);
+    const tags = useTagStore((s: TagState) => s.tags);
+    const fetchTags = useTagStore((s: TagState) => s.fetchTags);
+    const invalidateTags = useTagStore((s: TagState) => s.invalidate);
+
     const [loading, setLoading] = useState(true);
     const [trashCount, setTrashCount] = useState(0);
     const [showTagManage, setShowTagManage] = useState(false);
@@ -45,40 +52,40 @@ export default function Sidebar({ onFolderReorder }: SidebarProps) {
     const currentTagId = searchParams.get('tag') || null;
     const showFavorites = searchParams.get('favorite') === 'true';
 
+    /**
+     * 初始化加载：从 store 获取 folders/tags + fetch trash count
+     */
     useEffect(() => {
-        loadSidebarData();
+        const init = async () => {
+            setLoading(true);
+            await Promise.all([fetchFolders(), fetchTags()]);
+            try {
+                const trashData = await api.getTrashCollections({ page: 1, pageSize: 1 }).catch(() => null);
+                if (trashData) {
+                    setTrashCount(trashData.pagination.total);
+                }
+            } catch (err) {
+                console.error('加载回收站计数失败:', err);
+            }
+            setLoading(false);
+        };
+        init();
     }, []);
 
     /**
-     * 静默刷新侧边栏数据（不显示加载状态，避免闪烁）
+     * 静默刷新全部侧边栏数据
      */
     async function refreshSidebarData() {
+        await Promise.all([invalidateFolders(), invalidateTags()]);
         try {
-            const [folderData, tagData, trashData] = await Promise.all([
-                api.getFolderTree(),
-                api.getTags(),
-                api.getTrashCollections({ page: 1, pageSize: 1 }).catch(() => null),
-            ]);
-            setFolders(folderData);
-            setTags(tagData);
+            const trashData = await api.getTrashCollections({ page: 1, pageSize: 1 }).catch(() => null);
             if (trashData) {
                 setTrashCount(trashData.pagination.total);
             }
         } catch (err) {
-            console.error('刷新侧边栏数据失败:', err);
+            console.error('刷新回收站计数失败:', err);
         }
     }
-
-    /**
-     * 监听回收站数据变更事件，静默刷新
-     */
-    useEffect(() => {
-        const handleTrashUpdated = () => {
-            refreshSidebarData();
-        };
-        window.addEventListener('trash-updated', handleTrashUpdated);
-        return () => window.removeEventListener('trash-updated', handleTrashUpdated);
-    }, []);
 
     /**
      * 离开回收站页面时静默刷新
@@ -91,29 +98,6 @@ export default function Sidebar({ onFolderReorder }: SidebarProps) {
             refreshSidebarData();
         }
     }, [location.pathname]);
-
-    /**
-     * 加载侧边栏数据（首次加载，带 loading 状态）
-     */
-    async function loadSidebarData() {
-        try {
-            setLoading(true);
-            const [folderData, tagData, trashData] = await Promise.all([
-                api.getFolderTree(),
-                api.getTags(),
-                api.getTrashCollections({ page: 1, pageSize: 1 }).catch(() => null),
-            ]);
-            setFolders(folderData);
-            setTags(tagData);
-            if (trashData) {
-                setTrashCount(trashData.pagination.total);
-            }
-        } catch (err) {
-            console.error('加载侧边栏数据失败:', err);
-        } finally {
-            setLoading(false);
-        }
-    }
 
     /**
      * 选中文件夹
@@ -186,7 +170,7 @@ export default function Sidebar({ onFolderReorder }: SidebarProps) {
             setCreatingFolder(true);
             await api.createFolder({ name, parentId: createParentId ?? undefined });
             showToast('文件夹创建成功', 'success');
-            await loadSidebarData();
+            await invalidateFolders();
         } catch (err) {
             console.error('创建文件夹失败:', err);
             showToast('创建文件夹失败', 'error');
@@ -257,7 +241,7 @@ export default function Sidebar({ onFolderReorder }: SidebarProps) {
                 onSelectFolder={handleSelectFolder}
                 onCreateFolder={handleCreateFolder}
                 onFolderReorder={onFolderReorder}
-                onFolderUpdated={loadSidebarData}
+                onFolderUpdated={invalidateFolders}
             />
 
             {/* 内联创建文件夹输入框 */}
@@ -307,7 +291,7 @@ export default function Sidebar({ onFolderReorder }: SidebarProps) {
                 <TagManageModal
                     tags={tags}
                     onClose={() => setShowTagManage(false)}
-                    onTagUpdated={refreshSidebarData}
+                    onTagUpdated={invalidateTags}
                 />
             )}
         </div>

@@ -64,7 +64,7 @@ function FolderTreeNode({
 
     // 排序：文件夹拖拽排序
     const {
-        attributes: sortableAttributes,
+        attributes: _sortableAttributes,
         isDragging: isSorting,
         listeners: sortableListeners,
         setNodeRef: setSortableRef,

@@ -241,3 +241,74 @@
         margin-left: 0;
     }
 }
+
+/* 桌面端数据管理样式 */
+.data-manage-storage-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background-color: var(--color-bg-hover);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.data-manage-storage-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.data-manage-storage-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.data-manage-storage-value {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    font-weight: 500;
+}
+
+.data-manage-backups-list {
+    margin-top: var(--spacing-lg);
+}
+
+.data-manage-backups-title {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-md);
+}
+
+.data-manage-backup-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-sm);
+}
+
+.data-manage-backup-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.data-manage-backup-name {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.data-manage-backup-meta {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+}
+
+.data-manage-backup-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}

@@ -5,7 +5,9 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import type { Collection, Tag, Folder } from '../types';
+import { useFolderStore, type FolderState } from '../store/folderStore';
+import { useTagStore, type TagState } from '../store/tagStore';
+import type { Collection, Folder } from '../types';
 import * as api from '../services/api';
 import { formatDate } from '../utils/format';
 import { useToast } from '../contexts/ToastContext';
@@ -34,9 +36,9 @@ export default function CollectionDetail() {
     const [editFolderId, setEditFolderId] = useState<string | null>(null);
     const [editTagIds, setEditTagIds] = useState<string[]>([]);
 
-    // 文件夹和标签（用于编辑选择）
-    const [folders, setFolders] = useState<Folder[]>([]);
-    const [tags, setTags] = useState<Tag[]>([]);
+    // 文件夹和标签（用于编辑选择，从 store 读取）
+    const folders = useFolderStore((s: FolderState) => s.folders);
+    const tags = useTagStore((s: TagState) => s.tags);
 
     useEffect(() => {
         if (id) {
@@ -50,15 +52,14 @@ export default function CollectionDetail() {
     async function loadDetail() {
         try {
             setLoading(true);
-            const [detailData, folderData, tagData] = await Promise.all([
-                api.getCollectionById(id!),
-                api.getFolderTree(),
-                api.getTags(),
+            // 确保 store 数据已加载
+            await Promise.all([
+                useFolderStore.getState().fetchFolders(),
+                useTagStore.getState().fetchTags(),
             ]);
+            const detailData = await api.getCollectionById(id!);
 
             setCollection(detailData);
-            setFolders(folderData);
-            setTags(tagData);
 
             // 初始化编辑表单
             setEditTitle(detailData.title);
@@ -138,7 +139,8 @@ export default function CollectionDetail() {
 
         try {
             await api.deleteCollection(collection.id);
-            window.dispatchEvent(new CustomEvent('trash-updated'));
+            await useFolderStore.getState().invalidate();
+            await useTagStore.getState().invalidate();
             navigate('/');
         } catch (err) {
             console.error('删除失败:', err);

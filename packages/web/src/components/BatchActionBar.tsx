@@ -3,7 +3,6 @@
  * 固定在列表顶部，提供全选、删除、移动、打标签等批量操作
  */
 
-import React from 'react';
 import './BatchActionBar.css';
 
 interface BatchActionBarProps {
@@ -31,7 +30,6 @@ interface BatchActionBarProps {
  */
 export default function BatchActionBar({
     selectedCount,
-    totalCount,
     isAllSelected,
     onSelectAll,
     onDelete,

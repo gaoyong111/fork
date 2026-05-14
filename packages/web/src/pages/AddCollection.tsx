@@ -6,8 +6,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TagSelector from '../components/TagSelector';
+import { useFolderStore, type FolderState } from '../store/folderStore';
+import { useTagStore, type TagState } from '../store/tagStore';
 import { CollectionType } from '../types';
-import type { Tag, Folder } from '../types';
+import type { Folder } from '../types';
 import * as api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import './AddCollection.css';
@@ -31,31 +33,18 @@ export default function AddCollection() {
     const [file, setFile] = useState<File | null>(null);
     const [thumbnailUrl, setThumbnailUrl] = useState('');
 
-    // 辅助数据
-    const [folders, setFolders] = useState<Folder[]>([]);
-    const [tags, setTags] = useState<Tag[]>([]);
+    // 辅助数据（从 store 读取）
+    const folders = useFolderStore((s: FolderState) => s.folders);
+    const tags = useTagStore((s: TagState) => s.tags);
     const [submitting, setSubmitting] = useState(false);
     const [fetchingMetadata, setFetchingMetadata] = useState(false);
 
     useEffect(() => {
-        loadFormData();
+        Promise.all([
+            useFolderStore.getState().fetchFolders(),
+            useTagStore.getState().fetchTags(),
+        ]);
     }, []);
-
-    /**
-     * 加载表单所需的辅助数据（文件夹和标签）
-     */
-    async function loadFormData() {
-        try {
-            const [folderData, tagData] = await Promise.all([
-                api.getFolderTree(),
-                api.getTags(),
-            ]);
-            setFolders(folderData);
-            setTags(tagData);
-        } catch (err) {
-            console.error('加载表单数据失败:', err);
-        }
-    }
 
     /**
      * 提交表单
@@ -335,7 +324,7 @@ export default function AddCollection() {
                         onCreateTag={async (name, color) => {
                             try {
                                 const newTag = await api.createTag({ name, color });
-                                setTags([...tags, newTag]);
+                                await useTagStore.getState().invalidate();
                                 setTagIds([...tagIds, newTag.id]);
                             } catch (err) {
                                 console.error('创建标签失败:', err);

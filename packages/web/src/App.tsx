@@ -3,6 +3,7 @@
  * 配置应用的页面路由和整体布局
  * 在最外层提供 DndContext，使 Sidebar 和 CollectionList 共享拖拽上下文
  * 集成剪贴板自动检测和 PWA 安装引导
+ * mutation 后通过 Zustand store invalidate 刷新数据，不再使用 refreshKey
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -12,6 +13,7 @@ import Layout from './components/Layout';
 import QuickSaveModal from './components/QuickSaveModal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import { ToastProvider } from './contexts/ToastContext';
+import { useFolderStore } from './store/folderStore';
 import Sidebar from './pages/Sidebar';
 import CollectionList from './pages/CollectionList';
 import CollectionDetail from './pages/CollectionDetail';
@@ -28,7 +30,6 @@ import * as api from './services/api';
  * 提供 DndContext 支持跨组件拖拽
  */
 export default function App() {
-    const [refreshKey, setRefreshKey] = useState(0);
     const [quickSaveVisible, setQuickSaveVisible] = useState(false);
     const [detectedUrl, setDetectedUrl] = useState<ClipboardDetectResult | null>(null);
 
@@ -43,12 +44,12 @@ export default function App() {
 
     /**
      * 快速收藏成功的回调
-     * 关闭弹窗并刷新列表
+     * 关闭弹窗并刷新 store 数据
      */
     const handleQuickSaveSuccess = useCallback(() => {
         setQuickSaveVisible(false);
         setDetectedUrl(null);
-        setRefreshKey((prev) => prev + 1);
+        useFolderStore.getState().invalidate();
     }, []);
 
     /**
@@ -98,7 +99,7 @@ export default function App() {
                 await api.updateFolder(activeFolder.id, {
                     sortOrder: overFolder.sortOrder,
                 });
-                setRefreshKey((prev) => prev + 1);
+                await useFolderStore.getState().invalidate();
             } catch (err) {
                 console.error('文件夹排序失败:', err);
             }
@@ -112,7 +113,7 @@ export default function App() {
         async (folderId: string, newSortOrder: number) => {
             try {
                 await api.updateFolder(folderId, { sortOrder: newSortOrder });
-                setRefreshKey((prev) => prev + 1);
+                await useFolderStore.getState().invalidate();
             } catch (err) {
                 console.error('文件夹排序失败:', err);
             }
@@ -121,7 +122,7 @@ export default function App() {
     );
 
     /**
-     * 手动触发剪贴板检测（从 FAB 按钮触发）
+     * 手动触发剪贴板检测（从 FAB 钮触发）
      */
     const handleManualDetect = useCallback(async () => {
         resetClipboard();
@@ -142,7 +143,7 @@ export default function App() {
                             <Routes>
                                 <Route
                                     path="/"
-                                    element={<CollectionList refreshKey={refreshKey} />}
+                                    element={<CollectionList />}
                                 />
                                 <Route
                                     path="/collection/:id"

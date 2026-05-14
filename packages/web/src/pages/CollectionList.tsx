@@ -4,7 +4,7 @@
  * 支持拖拽收藏到文件夹
  */
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import SearchBar, { type SearchBarRef } from '../components/SearchBar';
 import CollectionCard from '../components/CollectionCard';
@@ -13,7 +13,9 @@ import BatchActionBar from '../components/BatchActionBar';
 import FolderSelector from '../components/FolderSelector';
 import TagPicker from '../components/TagPicker';
 import { useToast } from '../contexts/ToastContext';
-import type { Collection, Folder, GetCollectionsParams, Tag } from '../types';
+import type { Collection, GetCollectionsParams } from '../types';
+import { useFolderStore, type FolderState } from '../store/folderStore';
+import { useTagStore, type TagState } from '../store/tagStore';
 import * as api from '../services/api';
 import './CollectionList.css';
 
@@ -39,16 +41,12 @@ const SORT_OPTIONS: SortOption[] = [
     { sortBy: 'title', sortOrder: 'desc', label: '标题 Z→A' },
 ];
 
-interface CollectionListProps {
-    /** 刷新键，变化时重新加载数据 */
-    refreshKey?: number;
-}
-
 /**
  * 收藏列表页面组件
  * 展示收藏项列表，支持搜索、筛选、排序和批量操作
+ * 文件夹和标签数据从 Zustand store 读取
  */
-export default function CollectionList({ refreshKey }: CollectionListProps) {
+export default function CollectionList() {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const { showToast, showConfirm } = useToast();
@@ -73,9 +71,9 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
     const [showTagPicker, setShowTagPicker] = useState(false);
     const [batchLoading, setBatchLoading] = useState(false);
 
-    // 文件夹和标签数据（用于批量操作）
-    const [folders, setFolders] = useState<Folder[]>([]);
-    const [allTags, setAllTags] = useState<Tag[]>([]);
+    // 文件夹和标签数据（用于批量操作，从 store 读取）
+    const folders = useFolderStore((s: FolderState) => s.folders);
+    const allTags = useTagStore((s: TagState) => s.tags);
 
     // 从 URL 参数获取筛选条件
     const folderId = searchParams.get('folder') || undefined;
@@ -154,23 +152,19 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
             }
         })();
         return () => { cancelled = true; };
-    }, [folderId, tagId, isFavorite, sortByParam, sortOrderParam, pagination.page, refreshKey, keyword]);
+    }, [folderId, tagId, isFavorite, sortByParam, sortOrderParam, pagination.page, keyword]);
 
     /**
-     * 加载文件夹和标签数据（批量操作时使用）
+     * 进入批量模式时预加载 folders/tags 数据
      */
-    async function loadBatchData() {
-        try {
-            const [folderData, tagData] = await Promise.all([
-                api.getFolderTree(),
-                api.getTags(),
-            ]);
-            setFolders(folderData);
-            setAllTags(tagData);
-        } catch (err) {
-            console.error('加载批量操作数据失败:', err);
-        }
-    }
+    const enterBatchMode = async () => {
+        setBatchMode(true);
+        setSelectedIds(new Set());
+        await Promise.all([
+            useFolderStore.getState().fetchFolders(),
+            useTagStore.getState().fetchTags(),
+        ]);
+    };
 
     /**
      * 搜索处理（300ms 防抖），防抖结束后更新 keyword，由 useEffect 自动触发加载
@@ -236,15 +230,6 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
     };
 
     // ==================== 批量操作相关 ====================
-
-    /**
-     * 进入批量模式
-     */
-    const enterBatchMode = async () => {
-        setBatchMode(true);
-        setSelectedIds(new Set());
-        await loadBatchData();
-    };
 
     /**
      * 退出批量模式
@@ -313,7 +298,8 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
         try {
             setBatchLoading(true);
             await api.batchDeleteCollections(Array.from(selectedIds));
-            window.dispatchEvent(new CustomEvent('trash-updated'));
+            await useFolderStore.getState().invalidate();
+            await useTagStore.getState().invalidate();
             exitBatchMode();
             await reloadCollections();
         } catch (err) {
@@ -336,6 +322,7 @@ export default function CollectionList({ refreshKey }: CollectionListProps) {
 
         try {
             await api.batchMoveCollections(Array.from(selectedIds), targetFolderId);
+            await useFolderStore.getState().invalidate();
             exitBatchMode();
             await reloadCollections();
         } catch (err) {

@@ -3,7 +3,7 @@
  * 显示所有标签供用户多选，确认后触发批量操作
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Tag } from '../types';
 import './TagPicker.css';
 

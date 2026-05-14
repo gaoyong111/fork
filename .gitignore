@@ -5,3 +5,7 @@ uploads/
 *.db
 *.db-journal
 .env
+# Rust build artifacts
+target/
+# Tauri auto-generated
+gen/

@@ -6,8 +6,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import * as api from '../services/api';
+import { useFolderStore, type FolderState } from '../store/folderStore';
+import { useTagStore, type TagState } from '../store/tagStore';
 import type { ClipboardDetectResult } from '../hooks/useClipboardDetector';
-import type { Folder, Tag } from '../types';
 import './QuickSaveModal.css';
 
 interface QuickSaveModalProps {
@@ -33,8 +34,8 @@ export default function QuickSaveModal({
     onSuccess,
 }: QuickSaveModalProps) {
     const [showFolderPicker, setShowFolderPicker] = useState(false);
-    const [folders, setFolders] = useState<Folder[]>([]);
-    const [tags, setTags] = useState<Tag[]>([]);
+    const folders = useFolderStore((s: FolderState) => s.folders);
+    const tags = useTagStore((s: TagState) => s.tags);
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
     const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -46,27 +47,14 @@ export default function QuickSaveModal({
     const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
 
     /**
-     * 加载文件夹列表和标签列表
-     */
-    const loadFoldersAndTags = useCallback(async () => {
-        try {
-            const [folderTree, tagList] = await Promise.all([
-                api.getFolderTree(),
-                api.getTags(),
-            ]);
-            setFolders(folderTree);
-            setTags(tagList);
-        } catch (err) {
-            console.error('加载文件夹和标签失败:', err);
-        }
-    }, []);
-
-    /**
-     * 弹窗显示时加载数据，关闭时重置状态
+     * 弹窗显示时从 store 加载 folders/tags 数据
      */
     useEffect(() => {
         if (visible) {
-            loadFoldersAndTags();
+            Promise.all([
+                useFolderStore.getState().fetchFolders(),
+                useTagStore.getState().fetchTags(),
+            ]);
             setShowFolderPicker(false);
             setSelectedFolderId(null);
             setSelectedTagIds([]);
@@ -76,7 +64,7 @@ export default function QuickSaveModal({
             setPageDescription('');
             setPageCoverUrl('');
         }
-    }, [visible, loadFoldersAndTags]);
+    }, [visible]);
 
     /**
      * 弹窗显示时自动获取页面元数据

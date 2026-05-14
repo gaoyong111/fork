@@ -1,13 +1,56 @@
 /**
- * 数据管理页面 - 提供数据导入/导出功能
- * 包含 JSON 备份导出/导入和浏览器书签 HTML 导出/导入
+ * 数据管理页面 - 提供数据导入/导出、备份恢复功能
+ * 桌面端额外支持本地备份恢复和存储信息查看
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useToast } from '../contexts/ToastContext';
+import { isTauriEnvironment } from '@favorites/shared/services/createApi';
 import type { ImportResult } from '../types';
 import * as api from '../services/api';
 import './DataManage.css';
+
+/** 备份记录类型 */
+interface BackupRecord {
+    name: string;
+    path: string;
+    size: number;
+    modifiedAt: string;
+}
+
+/** 存储信息类型 */
+interface StorageInfo {
+    dataDir: string;
+    dbSize: number;
+    uploadsSize: number;
+}
+
+const isDesktop = isTauriEnvironment();
+
+/**
+ * 格式化文件大小为人类可读格式
+ * @param bytes - 文件大小（字节）
+ * @returns 格式化后的字符串
+ */
+function formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+/**
+ * 格式化 ISO 时间为本地可读格式
+ * @param iso - ISO 8601 时间字符串
+ * @returns 格式化后的日期时间
+ */
+function formatDate(iso: string): string {
+    try {
+        const d = new Date(iso);
+        return d.toLocaleString('zh-CN');
+    } catch {
+        return iso;
+    }
+}
 
 /**
  * 数据管理页面组件
@@ -27,9 +70,38 @@ export default function DataManage() {
     // 拖拽状态
     const [dragOver, setDragOver] = useState(false);
 
+    // 桌面端数据管理状态
+    const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
+    const [backups, setBackups] = useState<BackupRecord[]>([]);
+    const [backingUp, setBackingUp] = useState(false);
+    const [restoring, setRestoring] = useState(false);
+    const [_loadingStorage, setLoadingStorage] = useState(false);
+
     // 文件输入引用
     const jsonInputRef = useRef<HTMLInputElement>(null);
     const htmlInputRef = useRef<HTMLInputElement>(null);
+
+    /**
+     * 加载桌面端存储信息和备份列表
+     */
+    const loadDesktopData = useCallback(async () => {
+        if (!isDesktop) return;
+        setLoadingStorage(true);
+        try {
+            const info = await api.getStorageInfo();
+            setStorageInfo(info);
+            const list = await api.listBackups();
+            setBackups(list);
+        } catch (err) {
+            showToast((err as Error).message || '加载存储信息失败', 'error');
+        } finally {
+            setLoadingStorage(false);
+        }
+    }, [showToast]);
+
+    useEffect(() => {
+        loadDesktopData();
+    }, [loadDesktopData]);
 
     /**
      * 处理 JSON 导出
@@ -124,6 +196,71 @@ export default function DataManage() {
     }, []);
 
     /**
+     * 创建数据库备份
+     */
+    const handleBackup = useCallback(async () => {
+        setBackingUp(true);
+        try {
+            const path = await api.backupDatabase();
+            showToast(`备份成功：${path}`, 'success');
+            loadDesktopData();
+        } catch (err) {
+            showToast((err as Error).message || '备份失败', 'error');
+        } finally {
+            setBackingUp(false);
+        }
+    }, [showToast, loadDesktopData]);
+
+    /**
+     * 从备份恢复数据库
+     * @param backupPath - 备份文件路径
+     */
+    const handleRestore = useCallback(async (backupPath: string) => {
+        const confirmed = await showConfirm({
+            title: '确认恢复',
+            message: '恢复备份将替换当前所有数据，此操作不可撤销。\n确定要继续吗？',
+            confirmText: '确定恢复',
+            cancelText: '取消',
+        });
+
+        if (!confirmed) return;
+
+        setRestoring(true);
+        try {
+            await api.restoreDatabase(backupPath);
+            showToast('数据恢复成功，页面将刷新', 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (err) {
+            showToast((err as Error).message || '恢复失败', 'error');
+        } finally {
+            setRestoring(false);
+        }
+    }, [showConfirm, showToast]);
+
+    /**
+     * 删除备份文件
+     * @param path - 备份文件路径
+     */
+    const handleDeleteBackup = useCallback(async (path: string) => {
+        const confirmed = await showConfirm({
+            title: '删除备份',
+            message: '确定要删除此备份文件吗？此操作不可撤销。',
+            confirmText: '删除',
+            cancelText: '取消',
+        });
+
+        if (!confirmed) return;
+
+        try {
+            await api.deleteBackup(path);
+            showToast('备份已删除', 'success');
+            loadDesktopData();
+        } catch (err) {
+            showToast((err as Error).message || '删除失败', 'error');
+        }
+    }, [showConfirm, showToast, loadDesktopData]);
+
+    /**
      * 处理拖拽进入
      * @param e - 拖拽事件
      */
@@ -168,7 +305,6 @@ export default function DataManage() {
         if (file) {
             handleFileSelect(file, 'json');
         }
-        // 重置 input 以允许重复选择同一文件
         e.target.value = '';
     }, [handleFileSelect]);
 
@@ -187,6 +323,81 @@ export default function DataManage() {
     return (
         <div className="data-manage">
             <h2 className="data-manage-title">数据管理</h2>
+
+            {/* 桌面端：存储信息与备份恢复 */}
+            {isDesktop && (
+                <div className="data-manage-card">
+                    <h3 className="data-manage-card-title">本地数据管理</h3>
+                    <p className="data-manage-card-desc">管理本地数据库的备份与恢复，查看存储空间占用。</p>
+
+                    {/* 存储信息 */}
+                    {storageInfo && (
+                        <div className="data-manage-storage-info">
+                            <div className="data-manage-storage-item">
+                                <span className="data-manage-storage-label">数据目录</span>
+                                <span className="data-manage-storage-value">{storageInfo.dataDir}</span>
+                            </div>
+                            <div className="data-manage-storage-item">
+                                <span className="data-manage-storage-label">数据库大小</span>
+                                <span className="data-manage-storage-value">{formatSize(storageInfo.dbSize)}</span>
+                            </div>
+                            <div className="data-manage-storage-item">
+                                <span className="data-manage-storage-label">上传文件大小</span>
+                                <span className="data-manage-storage-value">{formatSize(storageInfo.uploadsSize)}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="data-manage-actions">
+                        <button
+                            className="data-manage-btn data-manage-btn-primary"
+                            onClick={handleBackup}
+                            disabled={backingUp}
+                        >
+                            {backingUp ? <span className="data-manage-spinner" /> : (
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                                    <polyline points="17 21 17 13 7 13 7 21" />
+                                    <polyline points="7 3 7 8 15 8" />
+                                </svg>
+                            )}
+                            {backingUp ? '备份中...' : '创建备份'}
+                        </button>
+                    </div>
+
+                    {/* 备份列表 */}
+                    {backups.length > 0 && (
+                        <div className="data-manage-backups-list">
+                            <h4 className="data-manage-backups-title">备份列表</h4>
+                            {backups.map((backup) => (
+                                <div key={backup.path} className="data-manage-backup-item">
+                                    <div className="data-manage-backup-info">
+                                        <span className="data-manage-backup-name">{backup.name}</span>
+                                        <span className="data-manage-backup-meta">
+                                            {formatSize(backup.size)} · {formatDate(backup.modifiedAt)}
+                                        </span>
+                                    </div>
+                                    <div className="data-manage-backup-actions">
+                                        <button
+                                            className="data-manage-btn data-manage-btn-sm data-manage-btn-primary"
+                                            onClick={() => handleRestore(backup.path)}
+                                            disabled={restoring}
+                                        >
+                                            恢复
+                                        </button>
+                                        <button
+                                            className="data-manage-btn data-manage-btn-sm data-manage-btn-cancel"
+                                            onClick={() => handleDeleteBackup(backup.path)}
+                                        >
+                                            删除
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* 导出区域 */}
             <div className="data-manage-card">
