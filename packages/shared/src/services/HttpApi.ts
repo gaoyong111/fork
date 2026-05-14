@@ -1,4 +1,5 @@
 import type {
+    AiConfig,
     ApiResponse,
     Collection,
     CreateCollectionParams,
@@ -461,5 +462,19 @@ export class HttpApi extends FavoritesApi {
 
     async getDataDir(): Promise<string> {
         throw new Error('数据管理功能仅在桌面端可用');
+    }
+
+    // ==================== AI 设置 ====================
+
+    async getAiConfig(): Promise<AiConfig> {
+        throw new Error('AI 设置功能仅在桌面端可用');
+    }
+
+    async setAiConfig(_config: AiConfig): Promise<AiConfig> {
+        throw new Error('AI 设置功能仅在桌面端可用');
+    }
+
+    async testAiConnection(): Promise<{ success: boolean; model: string; message: string }> {
+        throw new Error('AI 设置功能仅在桌面端可用');
     }
 }

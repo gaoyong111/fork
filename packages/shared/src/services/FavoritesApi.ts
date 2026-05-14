@@ -1,4 +1,5 @@
 import type {
+    AiConfig,
     Collection,
     CreateCollectionParams,
     CreateFolderParams,
@@ -88,4 +89,10 @@ export abstract class FavoritesApi {
     abstract listBackups(): Promise<Array<{ name: string; path: string; size: number; modifiedAt: string }>>;
     abstract deleteBackup(path: string): Promise<void>;
     abstract getDataDir(): Promise<string>;
+
+    // ==================== AI 设置 ====================
+
+    abstract getAiConfig(): Promise<AiConfig>;
+    abstract setAiConfig(config: AiConfig): Promise<AiConfig>;
+    abstract testAiConnection(): Promise<{ success: boolean; model: string; message: string }>;
 }

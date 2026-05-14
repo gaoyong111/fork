@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.favorites.app",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "vite dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "vite build",
     "frontendDist": "../dist"
   },
   "app": {

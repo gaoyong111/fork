@@ -1,4 +1,5 @@
 import type {
+    AiConfig,
     Collection,
     CreateCollectionParams,
     CreateFolderParams,
@@ -48,8 +49,8 @@ export class TauriApi extends FavoritesApi {
     }
 
     private static getInvokeFn(): (cmd: string, args?: Record<string, unknown>) => Promise<unknown> {
-        // 使用全局 __TAURI__ 对象（withGlobalTauri: true 模式）
-        // @tauri-apps/api 包可选安装，这里优先用全局对象避免依赖问题
+        // withGlobalTauri: true 模式下，Tauri API 已注入到 window.__TAURI__
+        // 不需要 @tauri-apps/api npm 包
         const tauriObj = (window as unknown as Record<string, unknown>).__TAURI__ as Record<string, unknown> | undefined;
         if (tauriObj) {
             const core = tauriObj.core as Record<string, unknown>;
@@ -59,22 +60,22 @@ export class TauriApi extends FavoritesApi {
             }
         }
 
-        // 尝试动态 import @tauri-apps/api
-        // 这种方式在 Vite 环境下可以正确处理 ESM 模块
-        let cachedInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
-        return async (cmd: string, args?: Record<string, unknown>) => {
-            if (!cachedInvoke) {
-                // @ts-expect-error - 动态 import，仅在 Tauri 环境下可用
-                const module = await import('@tauri-apps/api/core');
-                cachedInvoke = module.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
-            }
-            return cachedInvoke(cmd, args);
-        };
+        // 不在 Tauri 环境 → createApi 会返回 HttpApi，此处不应走到
+        throw new Error('Tauri 环境未检测到，无法获取 invoke 函数');
     }
 
     private async call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-        const result = await this.invoke(cmd, args);
-        return result as T;
+        try {
+            const result = await this.invoke(cmd, args);
+            return result as T;
+        } catch (err) {
+            // Tauri invoke 错误可能是字符串或对象，统一提取消息
+            const message = typeof err === 'string' ? err
+                : (err as Record<string, unknown>)?.message as string
+                ?? (err as Record<string, unknown>)?.error as string
+                ?? String(err);
+            throw new Error(message);
+        }
     }
 
     // ==================== 收藏项 ====================
@@ -259,5 +260,19 @@ export class TauriApi extends FavoritesApi {
 
     async getDataDir(): Promise<string> {
         return this.call<string>('get_data_dir');
+    }
+
+    // ==================== AI 设置 ====================
+
+    async getAiConfig(): Promise<AiConfig> {
+        return this.call<AiConfig>('get_ai_config');
+    }
+
+    async setAiConfig(config: AiConfig): Promise<AiConfig> {
+        return this.call<AiConfig>('set_ai_config', { config });
+    }
+
+    async testAiConnection(): Promise<{ success: boolean; model: string; message: string }> {
+        return this.call<{ success: boolean; model: string; message: string }>('test_ai_connection');
     }
 }

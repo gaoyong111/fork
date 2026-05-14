@@ -74,3 +74,9 @@ END;
 CREATE TRIGGER IF NOT EXISTS collections_fts_delete AFTER DELETE ON collections BEGIN
     DELETE FROM collections_fts WHERE rowid = old.rowid;
 END;
+
+-- 应用设置表（键值对存储）
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);

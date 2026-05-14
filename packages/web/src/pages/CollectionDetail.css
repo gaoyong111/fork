@@ -7,6 +7,11 @@
     margin: 0 auto;
 }
 
+/* 返回按钮 */
+.collection-detail-back {
+    margin-bottom: var(--spacing-md);
+}
+
 /* 加载状态 */
 .collection-detail-loading {
     display: flex;

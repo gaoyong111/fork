@@ -312,3 +312,65 @@
     display: flex;
     gap: var(--spacing-sm);
 }
+
+/* AI 设置表单样式 */
+.data-manage-settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.data-manage-settings-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.data-manage-settings-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+}
+
+.data-manage-settings-input {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-white);
+    transition: border-color var(--transition-fast);
+}
+
+.data-manage-settings-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+/* AI 测试反馈 */
+.data-manage-ai-feedback {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+}
+
+.data-manage-ai-feedback.success {
+    background-color: var(--color-success-bg, #f0fdf4);
+    color: var(--color-success, #16a34a);
+    border: 1px solid var(--color-success, #16a34a);
+}
+
+.data-manage-ai-feedback.error {
+    background-color: var(--color-error-bg, #fef2f2);
+    color: var(--color-error, #dc2626);
+    border: 1px solid var(--color-error, #dc2626);
+}
+
+.data-manage-ai-feedback-model {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    margin-left: var(--spacing-sm);
+}

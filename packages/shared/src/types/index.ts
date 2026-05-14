@@ -224,3 +224,12 @@ export interface ImportResult {
     collectionsCreated: number;
     collectionsSkipped: number;
 }
+
+/**
+ * AI API 配置
+ */
+export interface AiConfig {
+    apiUrl: string;
+    apiKey: string;
+    model: string;
+}

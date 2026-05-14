@@ -9,3 +9,4 @@ pub mod ai_cmds;
 pub mod export_cmds;
 pub mod import_cmds;
 pub mod data_cmds;
+pub mod settings_cmds;

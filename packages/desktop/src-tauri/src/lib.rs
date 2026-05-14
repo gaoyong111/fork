@@ -60,6 +60,10 @@ pub fn run() {
             data_cmds::list_backups,
             data_cmds::delete_backup,
             data_cmds::get_data_dir,
+            // 设置
+            settings_cmds::get_ai_config,
+            settings_cmds::set_ai_config,
+            settings_cmds::test_ai_connection,
         ])
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())

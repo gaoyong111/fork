@@ -6,7 +6,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { isTauriEnvironment } from '@favorites/shared/services/createApi';
-import type { ImportResult } from '../types';
+import type { ImportResult, AiConfig } from '../types';
 import * as api from '../services/api';
 import './DataManage.css';
 
@@ -77,6 +77,12 @@ export default function DataManage() {
     const [restoring, setRestoring] = useState(false);
     const [_loadingStorage, setLoadingStorage] = useState(false);
 
+    // AI 设置状态
+    const [aiConfig, setAiConfigState] = useState<AiConfig>({ apiUrl: '', apiKey: '', model: '' });
+    const [savingAiConfig, setSavingAiConfig] = useState(false);
+    const [testingAi, setTestingAi] = useState(false);
+    const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string; model?: string } | null>(null);
+
     // 文件输入引用
     const jsonInputRef = useRef<HTMLInputElement>(null);
     const htmlInputRef = useRef<HTMLInputElement>(null);
@@ -92,6 +98,8 @@ export default function DataManage() {
             setStorageInfo(info);
             const list = await api.listBackups();
             setBackups(list);
+            const config = await api.getAiConfig();
+            setAiConfigState(config);
         } catch (err) {
             showToast((err as Error).message || '加载存储信息失败', 'error');
         } finally {
@@ -261,6 +269,39 @@ export default function DataManage() {
     }, [showConfirm, showToast, loadDesktopData]);
 
     /**
+     * 保存 AI API 配置
+     */
+    const handleSaveAiConfig = useCallback(async () => {
+        setSavingAiConfig(true);
+        try {
+            await api.setAiConfig(aiConfig);
+            showToast('AI 设置已保存', 'success');
+        } catch (err) {
+            showToast((err as Error).message || '保存失败', 'error');
+        } finally {
+            setSavingAiConfig(false);
+        }
+    }, [aiConfig, showToast]);
+
+    /**
+     * 测试 AI API 连接
+     */
+    const handleTestAiConnection = useCallback(async () => {
+        setTestingAi(true);
+        setAiTestResult(null);
+        try {
+            const result = await api.testAiConnection();
+            setAiTestResult({ success: true, message: result.message, model: result.model });
+            showToast(result.message, 'success');
+        } catch (err) {
+            setAiTestResult({ success: false, message: (err as Error).message });
+            showToast((err as Error).message, 'error');
+        } finally {
+            setTestingAi(false);
+        }
+    }, [showToast]);
+
+    /**
      * 处理拖拽进入
      * @param e - 拖拽事件
      */
@@ -396,6 +437,82 @@ export default function DataManage() {
                             ))}
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* 桌面端：AI API 设置 */}
+            {isDesktop && (
+                <div className="data-manage-card">
+                    <h3 className="data-manage-card-title">AI 服务设置</h3>
+                    <p className="data-manage-card-desc">配置用于精读摘要和智能标签匹配的 AI API。支持 OpenAI 兼容接口（如 DeepSeek、Moonshot 等）。</p>
+
+                    <div className="data-manage-settings-form">
+                        <div className="data-manage-settings-item">
+                            <label className="data-manage-settings-label">API 地址</label>
+                            <input
+                                type="text"
+                                className="data-manage-settings-input"
+                                value={aiConfig.apiUrl}
+                                onChange={(e) => setAiConfigState({ ...aiConfig, apiUrl: e.target.value })}
+                                placeholder="https://api.openai.com/v1"
+                            />
+                        </div>
+                        <div className="data-manage-settings-item">
+                            <label className="data-manage-settings-label">API Key</label>
+                            <input
+                                type="password"
+                                className="data-manage-settings-input"
+                                value={aiConfig.apiKey}
+                                onChange={(e) => setAiConfigState({ ...aiConfig, apiKey: e.target.value })}
+                                placeholder="sk-..."
+                            />
+                        </div>
+                        <div className="data-manage-settings-item">
+                            <label className="data-manage-settings-label">模型名称</label>
+                            <input
+                                type="text"
+                                className="data-manage-settings-input"
+                                value={aiConfig.model}
+                                onChange={(e) => setAiConfigState({ ...aiConfig, model: e.target.value })}
+                                placeholder="gpt-4o-mini"
+                            />
+                        </div>
+                        <button
+                            className="data-manage-btn data-manage-btn-primary"
+                            onClick={handleSaveAiConfig}
+                            disabled={savingAiConfig}
+                        >
+                            {savingAiConfig ? <span className="data-manage-spinner" /> : null}
+                            {savingAiConfig ? '保存中...' : '保存设置'}
+                        </button>
+                        <button
+                            className="data-manage-btn data-manage-btn-dashed"
+                            onClick={handleTestAiConnection}
+                            disabled={testingAi}
+                        >
+                            {testingAi ? <span className="data-manage-spinner" /> : null}
+                            {testingAi ? '测试中...' : '测试连接'}
+                        </button>
+                        {aiTestResult && (
+                            <div className={`data-manage-ai-feedback ${aiTestResult.success ? 'success' : 'error'}`}>
+                                {aiTestResult.success ? (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M20 6L9 17l-5-5" />
+                                    </svg>
+                                ) : (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <line x1="15" y1="9" x2="9" y2="15" />
+                                        <line x1="9" y1="9" x2="15" y2="15" />
+                                    </svg>
+                                )}
+                                <span>{aiTestResult.message}</span>
+                                {aiTestResult.success && aiTestResult.model && (
+                                    <span className="data-manage-ai-feedback-model">模型: {aiTestResult.model}</span>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 

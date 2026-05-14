@@ -74,3 +74,9 @@ export const restoreDatabase = adapter.restoreDatabase.bind(adapter);
 export const listBackups = adapter.listBackups.bind(adapter);
 export const deleteBackup = adapter.deleteBackup.bind(adapter);
 export const getDataDir = adapter.getDataDir.bind(adapter);
+
+// ==================== AI 设置 ====================
+
+export const getAiConfig = adapter.getAiConfig.bind(adapter);
+export const setAiConfig = adapter.setAiConfig.bind(adapter);
+export const testAiConnection = adapter.testAiConnection.bind(adapter);

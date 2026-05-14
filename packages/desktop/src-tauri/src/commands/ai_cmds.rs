@@ -1,13 +1,28 @@
 use reqwest;
 use scraper::{Html, Selector};
+use crate::db::get_db;
 
 const FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+/** 从 DB settings 读取 AI 配置 */
 fn get_ai_config() -> (String, String, String) {
-    let api_url = std::env::var("AI_API_URL").unwrap_or("https://api.openai.com/v1".to_string());
-    let api_key = std::env::var("AI_API_KEY").unwrap_or_default();
-    let model = std::env::var("AI_MODEL").unwrap_or("gpt-4o-mini".to_string());
+    let db = get_db().lock().unwrap();
+    let api_url = db.prepare("SELECT value FROM settings WHERE key = 'ai_api_url'")
+        .ok()
+        .and_then(|mut stmt| stmt.query_row([], |row| row.get::<_, String>(0)).ok())
+        .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+
+    let api_key = db.prepare("SELECT value FROM settings WHERE key = 'ai_api_key'")
+        .ok()
+        .and_then(|mut stmt| stmt.query_row([], |row| row.get::<_, String>(0)).ok())
+        .unwrap_or_default();
+
+    let model = db.prepare("SELECT value FROM settings WHERE key = 'ai_model'")
+        .ok()
+        .and_then(|mut stmt| stmt.query_row([], |row| row.get::<_, String>(0)).ok())
+        .unwrap_or_else(|| "gpt-4o-mini".to_string());
+
     (api_url, api_key, model)
 }
 
@@ -40,7 +55,7 @@ pub async fn extract_summary(url: String) -> Result<serde_json::Value, String> {
     let (api_url, api_key, model) = get_ai_config();
 
     if api_key.is_empty() {
-        return Err("AI 服务未配置（缺少 AI_API_KEY）".to_string());
+        return Err("AI 服务未配置，请在设置中填写 API Key".to_string());
     }
 
     // 1. 抓取页面

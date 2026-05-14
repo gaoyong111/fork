@@ -229,6 +229,16 @@ export default function CollectionDetail() {
 
     return (
         <div className="collection-detail">
+            {/* 返回按钮 */}
+            <div className="collection-detail-back">
+                <button className="action-btn" onClick={() => navigate('/')}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    返回
+                </button>
+            </div>
+
             {/* 面包屑导航 */}
             <div className="collection-detail-breadcrumb">
                 <Link to="/">全部收藏</Link>
@@ -450,15 +460,7 @@ export default function CollectionDetail() {
                             </div>
                         )}
 
-                        {/* 描述 */}
-                        {collection.description && (
-                            <div className="detail-section">
-                                <h3 className="detail-section-title">描述</h3>
-                                <p className="detail-description">{collection.description}</p>
-                            </div>
-                        )}
-
-                        {/* 内容 */}
+                        {/* 精读内容（优先展示） */}
                         {collection.content && (
                             <div className="detail-section">
                                 <h3 className="detail-section-title">
@@ -474,6 +476,14 @@ export default function CollectionDetail() {
                                         {collection.content}
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* 描述 */}
+                        {collection.description && (
+                            <div className="detail-section">
+                                <h3 className="detail-section-title">描述</h3>
+                                <p className="detail-description">{collection.description}</p>
                             </div>
                         )}
                     </div>
