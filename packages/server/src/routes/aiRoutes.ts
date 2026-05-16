@@ -12,6 +12,9 @@ const AI_API_URL = process.env.AI_API_URL || 'https://api.openai.com/v1';
 const AI_API_KEY = process.env.AI_API_KEY || '';
 const AI_MODEL = process.env.AI_MODEL || 'gpt-4o-mini';
 
+/** AI API 调用超时（长文本生成需要较长时间） */
+const AI_TIMEOUT = 120000;
+
 /** 抓取页面超时 */
 const FETCH_TIMEOUT = 15000;
 
@@ -99,9 +102,13 @@ router.post('/summarize', async (req: Request, res: Response): Promise<void> => 
             return;
         }
 
-        // 2. 调用 AI API 进行精读归纳
+        // 2. 调用 AI API 进行精读归纳（120s 超时适配长文本生成）
+        const aiController = new AbortController();
+        const aiTimeoutId = setTimeout(() => aiController.abort(), AI_TIMEOUT);
+
         const aiResponse = await fetch(`${AI_API_URL}/chat/completions`, {
             method: 'POST',
+            signal: aiController.signal,
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${AI_API_KEY}`,
@@ -142,6 +149,8 @@ router.post('/summarize', async (req: Request, res: Response): Promise<void> => 
                 temperature: 0.7,
             }),
         });
+
+        clearTimeout(aiTimeoutId);
 
         const aiData = await aiResponse.json() as Record<string, unknown>;
 

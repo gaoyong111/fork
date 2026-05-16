@@ -25,7 +25,8 @@ interface StorageInfo {
     uploadsSize: number;
 }
 
-const isDesktop = isTauriEnvironment();
+/** 是否为桌面端环境（每次调用时检测，避免模块加载时 Tauri internals 尚未注入） */
+const isDesktop = () => isTauriEnvironment();
 
 /**
  * 格式化文件大小为人类可读格式
@@ -75,12 +76,13 @@ export default function DataManage() {
     const [backups, setBackups] = useState<BackupRecord[]>([]);
     const [backingUp, setBackingUp] = useState(false);
     const [restoring, setRestoring] = useState(false);
-    const [_loadingStorage, setLoadingStorage] = useState(false);
+    const [loadingStorage, setLoadingStorage] = useState(false);
 
     // AI 设置状态
     const [aiConfig, setAiConfigState] = useState<AiConfig>({ apiUrl: '', apiKey: '', model: '' });
     const [savingAiConfig, setSavingAiConfig] = useState(false);
     const [testingAi, setTestingAi] = useState(false);
+    const [showApiKey, setShowApiKey] = useState(false);
     const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string; model?: string } | null>(null);
 
     // 文件输入引用
@@ -91,7 +93,7 @@ export default function DataManage() {
      * 加载桌面端存储信息和备份列表
      */
     const loadDesktopData = useCallback(async () => {
-        if (!isDesktop) return;
+        if (!isDesktop()) return;
         setLoadingStorage(true);
         try {
             const info = await api.getStorageInfo();
@@ -290,7 +292,7 @@ export default function DataManage() {
         setTestingAi(true);
         setAiTestResult(null);
         try {
-            const result = await api.testAiConnection();
+            const result = await api.testAiConnection(aiConfig);
             setAiTestResult({ success: true, message: result.message, model: result.model });
             showToast(result.message, 'success');
         } catch (err) {
@@ -299,7 +301,7 @@ export default function DataManage() {
         } finally {
             setTestingAi(false);
         }
-    }, [showToast]);
+    }, [aiConfig, showToast]);
 
     /**
      * 处理拖拽进入
@@ -313,8 +315,15 @@ export default function DataManage() {
     /**
      * 处理拖拽离开
      */
-    const handleDragLeave = useCallback(() => {
-        setDragOver(false);
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        const rect = e.currentTarget.getBoundingClientRect();
+        if (
+            e.clientX <= rect.left || e.clientX >= rect.right ||
+            e.clientY <= rect.top || e.clientY >= rect.bottom
+        ) {
+            setDragOver(false);
+        }
     }, []);
 
     /**
@@ -366,12 +375,19 @@ export default function DataManage() {
             <h2 className="data-manage-title">数据管理</h2>
 
             {/* 桌面端：存储信息与备份恢复 */}
-            {isDesktop && (
+            {isDesktop() && (
                 <div className="data-manage-card">
                     <h3 className="data-manage-card-title">本地数据管理</h3>
                     <p className="data-manage-card-desc">管理本地数据库的备份与恢复，查看存储空间占用。</p>
 
                     {/* 存储信息 */}
+                    {loadingStorage && !storageInfo && (
+                        <div className="data-manage-storage-info">
+                            <div className="data-manage-storage-item">
+                                <span className="data-manage-storage-label">正在加载存储信息...</span>
+                            </div>
+                        </div>
+                    )}
                     {storageInfo && (
                         <div className="data-manage-storage-info">
                             <div className="data-manage-storage-item">
@@ -441,7 +457,7 @@ export default function DataManage() {
             )}
 
             {/* 桌面端：AI API 设置 */}
-            {isDesktop && (
+            {isDesktop() && (
                 <div className="data-manage-card">
                     <h3 className="data-manage-card-title">AI 服务设置</h3>
                     <p className="data-manage-card-desc">配置用于精读摘要和智能标签匹配的 AI API。支持 OpenAI 兼容接口（如 DeepSeek、Moonshot 等）。</p>
@@ -459,13 +475,34 @@ export default function DataManage() {
                         </div>
                         <div className="data-manage-settings-item">
                             <label className="data-manage-settings-label">API Key</label>
-                            <input
-                                type="password"
-                                className="data-manage-settings-input"
-                                value={aiConfig.apiKey}
-                                onChange={(e) => setAiConfigState({ ...aiConfig, apiKey: e.target.value })}
-                                placeholder="sk-..."
-                            />
+                            <div className="data-manage-settings-input-group">
+                                <input
+                                    type={showApiKey ? 'text' : 'password'}
+                                    className="data-manage-settings-input"
+                                    value={aiConfig.apiKey}
+                                    onChange={(e) => setAiConfigState({ ...aiConfig, apiKey: e.target.value })}
+                                    placeholder="sk-..."
+                                />
+                                <button
+                                    className="data-manage-settings-input-toggle"
+                                    onClick={() => setShowApiKey(!showApiKey)}
+                                    type="button"
+                                    aria-label={showApiKey ? '隐藏 API Key' : '显示 API Key'}
+                                >
+                                    {showApiKey ? (
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                                            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                                            <line x1="1" y1="1" x2="23" y2="23" />
+                                        </svg>
+                                    ) : (
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                            <circle cx="12" cy="12" r="3" />
+                                        </svg>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                         <div className="data-manage-settings-item">
                             <label className="data-manage-settings-label">模型名称</label>
@@ -478,20 +515,20 @@ export default function DataManage() {
                             />
                         </div>
                         <button
-                            className="data-manage-btn data-manage-btn-primary"
-                            onClick={handleSaveAiConfig}
-                            disabled={savingAiConfig}
-                        >
-                            {savingAiConfig ? <span className="data-manage-spinner" /> : null}
-                            {savingAiConfig ? '保存中...' : '保存设置'}
-                        </button>
-                        <button
                             className="data-manage-btn data-manage-btn-dashed"
                             onClick={handleTestAiConnection}
                             disabled={testingAi}
                         >
                             {testingAi ? <span className="data-manage-spinner" /> : null}
                             {testingAi ? '测试中...' : '测试连接'}
+                        </button>
+                        <button
+                            className="data-manage-btn data-manage-btn-primary"
+                            onClick={handleSaveAiConfig}
+                            disabled={savingAiConfig}
+                        >
+                            {savingAiConfig ? <span className="data-manage-spinner" /> : null}
+                            {savingAiConfig ? '保存中...' : '保存设置'}
                         </button>
                         {aiTestResult && (
                             <div className={`data-manage-ai-feedback ${aiTestResult.success ? 'success' : 'error'}`}>

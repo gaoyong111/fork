@@ -28,7 +28,7 @@ export const useTagStore = create<TagState>((set, get) => ({
 
     fetchTags: async () => {
         const state = get();
-        if (state.initialized && state.tags.length > 0) return;
+        if (state.initialized) return;
 
         set({ loading: true });
         try {

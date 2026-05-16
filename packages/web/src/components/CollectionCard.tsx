@@ -9,6 +9,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { Collection } from '../types';
 import { formatRelativeTime, truncateText } from '../utils/format';
+import { useDeepReadStore } from '../store/deepReadStore';
 import './CollectionCard.css';
 
 interface CollectionCardProps {
@@ -106,6 +107,9 @@ export default function CollectionCard({
 
     const source = getSourceBadge(collection);
     const hasThumbnail = !!collection.thumbnailUrl;
+    const deepReadTask = useDeepReadStore((s) => s.tasks.find((t) => t.collectionId === collection.id));
+    const hasDeepRead = !!collection.content || !!useDeepReadStore((s) => s.completedContent[collection.id]);
+    const isDeepReading = deepReadTask?.status === 'processing' || deepReadTask?.status === 'pending';
 
     return (
         <div
@@ -152,12 +156,24 @@ export default function CollectionCard({
 
             {/* 内容区域 */}
             <div className="collection-card-body">
-                {/* 顶部元信息行：来源徽章 + 星标 */}
+                {/* 顶部元信息行：来源徽章 + 精读状态 + 星标 */}
                 <div className="collection-card-top-row">
                     <span className="collection-card-source">
                         <span className="collection-card-source-icon">{source.icon}</span>
                         {source.label}
                     </span>
+                    {/* 精读状态徽章 */}
+                    {isDeepReading && (
+                        <span className="collection-card-deepread-badge processing" title="精读中">
+                            <span className="deep-read-spinner-sm" />
+                            精读中
+                        </span>
+                    )}
+                    {hasDeepRead && !isDeepReading && (
+                        <span className="collection-card-deepread-badge done" title="已精读">
+                            已精读
+                        </span>
+                    )}
                     <button
                         className={`collection-card-favorite ${collection.isFavorite ? 'active' : ''}`}
                         onClick={handleFavoriteClick}

@@ -50,11 +50,11 @@ pub fn set_ai_config(config: AiConfig) -> AiConfig {
 
 /** 测试 AI API 连接，发送一个简单请求验证配置是否正确 */
 #[tauri::command]
-pub async fn test_ai_connection() -> Result<serde_json::Value, String> {
-    // 同步读取配置，立即释放 MutexGuard
-    let config = load_ai_config_sync();
+pub async fn test_ai_connection(config: Option<AiConfig>) -> Result<serde_json::Value, String> {
+    // 使用传入的 config 或从 DB 读取配置
+    let ai_config = config.unwrap_or_else(|| load_ai_config_sync());
 
-    if config.api_key.is_empty() {
+    if ai_config.api_key.is_empty() {
         return Err("API Key 未填写".to_string());
     }
 
@@ -63,17 +63,17 @@ pub async fn test_ai_connection() -> Result<serde_json::Value, String> {
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    let chat_url = format!("{}/chat/completions", config.api_url);
+    let chat_url = format!("{}/chat/completions", ai_config.api_url);
 
     let request_body = serde_json::json!({
-        "model": config.model,
+        "model": ai_config.model,
         "messages": [{"role": "user", "content": "Hello"}],
         "max_tokens": 5
     });
 
     let response = client.post(&chat_url)
         .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", config.api_key))
+        .header("Authorization", format!("Bearer {}", ai_config.api_key))
         .json(&request_body)
         .send()
         .await
@@ -92,7 +92,7 @@ pub async fn test_ai_connection() -> Result<serde_json::Value, String> {
     if data.get("choices").is_some() {
         Ok(serde_json::json!({
             "success": true,
-            "model": data.get("model").and_then(|m| m.as_str()).unwrap_or(&config.model),
+            "model": data.get("model").and_then(|m| m.as_str()).unwrap_or(&ai_config.model),
             "message": "连接成功，AI 服务可正常使用"
         }))
     } else {

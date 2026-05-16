@@ -16,6 +16,7 @@ import { useToast } from '../contexts/ToastContext';
 import type { Collection, GetCollectionsParams } from '../types';
 import { useFolderStore, type FolderState } from '../store/folderStore';
 import { useTagStore, type TagState } from '../store/tagStore';
+import { useDeepReadStore } from '../store/deepReadStore';
 import * as api from '../services/api';
 import './CollectionList.css';
 
@@ -115,6 +116,9 @@ export default function CollectionList() {
             const result = await api.getCollections(params);
             setCollections(result.items);
             setPagination(result.pagination);
+            if (result.items.length === 0 && pagination.page > 1) {
+                setPagination(prev => ({ ...prev, page: 1 }));
+            }
         } catch (err) {
             console.error('加载收藏列表失败:', err);
         } finally {
@@ -144,6 +148,11 @@ export default function CollectionList() {
                 if (!cancelled) {
                     setCollections(result.items);
                     setPagination(result.pagination);
+                    // 首次加载成功后初始化精读队列
+                    const deepReadState = useDeepReadStore.getState();
+                    if (!deepReadState.initialized) {
+                        deepReadState.initQueue(result.items);
+                    }
                 }
             } catch (err) {
                 if (!cancelled) console.error('加载收藏列表失败:', err);
@@ -152,7 +161,7 @@ export default function CollectionList() {
             }
         })();
         return () => { cancelled = true; };
-    }, [folderId, tagId, isFavorite, sortByParam, sortOrderParam, pagination.page, keyword]);
+    }, [folderId, tagId, isFavorite, sortByParam, sortOrderParam, pagination.page, pagination.pageSize, keyword]);
 
     /**
      * 进入批量模式时预加载 folders/tags 数据
@@ -167,6 +176,22 @@ export default function CollectionList() {
     };
 
     /**
+     * 批量精读：将选中项中未精读的链接收藏入队
+     */
+    const handleBatchDeepRead = () => {
+        const items = collections
+            .filter((c) => selectedIds.has(c.id) && c.type === 'link' && c.url && !c.content)
+            .map((c) => ({ id: c.id, url: c.url!, title: c.title }));
+        if (items.length === 0) {
+            showToast('选中的项中没有可精读的链接', 'warning');
+            return;
+        }
+        useDeepReadStore.getState().enqueueBatch(items);
+        showToast(`已加入精读队列 ${items.length} 项`, 'success');
+        exitBatchMode();
+    };
+
+    /**
      * 搜索处理（300ms 防抖），防抖结束后更新 keyword，由 useEffect 自动触发加载
      */
     const handleSearch = (value: string) => {
@@ -176,6 +201,7 @@ export default function CollectionList() {
 
         searchTimerRef.current = setTimeout(() => {
             setKeyword(value);
+            setPagination(prev => ({ ...prev, page: 1 }));
         }, 300);
     };
 
@@ -242,7 +268,7 @@ export default function CollectionList() {
     };
 
     /**
-     * ESC 退出批量模式
+     * ESC 退出批量模式（监听键盘事件 + Layout 全局事件）
      */
     useEffect(() => {
         function handleEsc(e: KeyboardEvent) {
@@ -251,8 +277,18 @@ export default function CollectionList() {
             }
         }
 
+        function handleExitBatchMode() {
+            if (batchMode) {
+                exitBatchMode();
+            }
+        }
+
         document.addEventListener('keydown', handleEsc);
-        return () => document.removeEventListener('keydown', handleEsc);
+        document.addEventListener('exit-batch-mode', handleExitBatchMode);
+        return () => {
+            document.removeEventListener('keydown', handleEsc);
+            document.removeEventListener('exit-batch-mode', handleExitBatchMode);
+        };
     }, [batchMode]);
 
     /**
@@ -468,6 +504,7 @@ export default function CollectionList() {
                         setShowTagPicker((prev) => !prev);
                         setShowFolderSelector(false);
                     }}
+                    onDeepRead={handleBatchDeepRead}
                     onCancel={exitBatchMode}
                 />
             )}
@@ -486,9 +523,11 @@ export default function CollectionList() {
                 </div>
             ) : collections.length === 0 ? (
                 <div className="collection-list-empty">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-                    </svg>
+                    <div className="collection-list-empty-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                        </svg>
+                    </div>
                     <p>暂无收藏内容</p>
                     <Link to="/add" className="collection-list-empty-action">
                         添加第一个收藏

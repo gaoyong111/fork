@@ -205,8 +205,33 @@ export class TauriApi extends FavoritesApi {
 
     // ==================== AI ====================
 
-    async extractSummary(url: string): Promise<{ summary: string }> {
-        return this.call<{ summary: string }>('extract_summary', { url });
+    async extractSummary(url: string, options?: { signal?: AbortSignal }): Promise<{ summary: string }> {
+        if (options?.signal?.aborted) {
+            throw new DOMException('The operation was aborted', 'AbortError');
+        }
+
+        const invokePromise = this.call<{ summary: string }>('extract_summary', { url });
+
+        if (!options?.signal) {
+            return invokePromise;
+        }
+
+        // Tauri IPC 无法真正取消 Rust 端请求，
+        // 但通过 wrapper Promise 在 abort 时立即 reject，让前端不再等待
+        return new Promise<{ summary: string }>((resolve, reject) => {
+            const onAbort = () => reject(new DOMException('The operation was aborted', 'AbortError'));
+            options.signal!.addEventListener('abort', onAbort, { once: true });
+
+            invokePromise
+                .then((result) => {
+                    options.signal!.removeEventListener('abort', onAbort);
+                    resolve(result);
+                })
+                .catch((err) => {
+                    options.signal!.removeEventListener('abort', onAbort);
+                    reject(err);
+                });
+        });
     }
 
     // ==================== 导入/导出 ====================
@@ -272,7 +297,7 @@ export class TauriApi extends FavoritesApi {
         return this.call<AiConfig>('set_ai_config', { config });
     }
 
-    async testAiConnection(): Promise<{ success: boolean; model: string; message: string }> {
-        return this.call<{ success: boolean; model: string; message: string }>('test_ai_connection');
+    async testAiConnection(config?: AiConfig): Promise<{ success: boolean; model: string; message: string }> {
+        return this.call<{ success: boolean; model: string; message: string }>('test_ai_connection', { config: config ?? null });
     }
 }

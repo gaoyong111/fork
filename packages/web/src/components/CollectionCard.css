@@ -17,6 +17,12 @@
 .collection-card:hover {
     box-shadow: var(--shadow-md);
     border-color: var(--color-border);
+    transform: translateY(-2px);
+}
+
+.collection-card:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
 }
 
 .collection-card-selected {
@@ -76,6 +82,44 @@
     background-color: var(--color-bg);
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
+}
+
+/* 精读状态徽章 */
+.collection-card-deepread-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-size: 10px;
+    font-weight: 500;
+}
+
+.collection-card-deepread-badge.processing {
+    background-color: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+.collection-card-deepread-badge.done {
+    background-color: var(--color-success-bg);
+    color: #5a8a5a;
+}
+
+.deep-read-spinner-sm {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border: 2px solid var(--color-primary-light);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: deep-read-card-spin 0.6s linear infinite;
+}
+
+@keyframes deep-read-card-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
     font-weight: 500;
     line-height: 1.4;
 }

@@ -34,6 +34,38 @@
     color: var(--color-text-tertiary);
 }
 
+.collection-detail-not-found-icon {
+    width: 80px;
+    height: 80px;
+    background-color: var(--color-primary-bg);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--spacing-lg);
+}
+
+.collection-detail-not-found p {
+    font-size: var(--font-size-lg);
+}
+
+.collection-detail-not-found-link {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--spacing-sm) var(--spacing-xl);
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    transition: background-color var(--transition-fast);
+}
+
+.collection-detail-not-found-link:hover {
+    background-color: var(--color-primary-dark);
+    color: var(--color-text-inverse);
+}
+
 /* 面包屑 - 更文雅的风格 */
 .collection-detail-breadcrumb {
     display: flex;
@@ -104,7 +136,7 @@
 }
 
 .action-btn.primary:disabled {
-    opacity: 0.6;
+    opacity: var(--opacity-disabled);
     cursor: not-allowed;
 }
 
@@ -121,6 +153,16 @@
 .action-btn.danger:hover {
     background-color: var(--color-danger);
     color: var(--color-text-inverse);
+}
+
+.action-btn-cancel {
+    color: var(--color-text-tertiary);
+    border-color: transparent;
+}
+
+.action-btn-cancel:hover {
+    color: var(--color-text-secondary);
+    background-color: var(--color-bg);
 }
 
 /* 内容卡片 - 带顶部装饰条，像翻开一本书 */

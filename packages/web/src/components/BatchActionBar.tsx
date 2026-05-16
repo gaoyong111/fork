@@ -20,6 +20,8 @@ interface BatchActionBarProps {
     onMoveToFolder: () => void;
     /** 添加标签回调 */
     onAddTags: () => void;
+    /** 批量精读回调 */
+    onDeepRead: () => void;
     /** 取消批量模式回调 */
     onCancel: () => void;
 }
@@ -35,6 +37,7 @@ export default function BatchActionBar({
     onDelete,
     onMoveToFolder,
     onAddTags,
+    onDeepRead,
     onCancel,
 }: BatchActionBarProps) {
     return (
@@ -47,7 +50,7 @@ export default function BatchActionBar({
                     className="batch-action-bar-btn batch-action-bar-btn-text"
                     onClick={onSelectAll}
                 >
-                    {isAllSelected ? '取消全选' : '全选'}
+                    {isAllSelected ? '取消选择' : '选择当前页'}
                 </button>
             </div>
 
@@ -85,6 +88,18 @@ export default function BatchActionBar({
                         <line x1="7" y1="7" x2="7.01" y2="7" />
                     </svg>
                     添加标签
+                </button>
+
+                <button
+                    className="batch-action-bar-btn"
+                    onClick={onDeepRead}
+                    disabled={selectedCount === 0}
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    批量精读
                 </button>
 
                 <button

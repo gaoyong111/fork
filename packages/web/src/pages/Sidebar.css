@@ -97,12 +97,6 @@
     }
 }
 
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
 /* 回收站入口 */
 .sidebar-trash {
     margin-top: auto;

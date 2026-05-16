@@ -12,6 +12,7 @@ import { DndContext, type DragEndEvent } from '@dnd-kit/core';
 import Layout from './components/Layout';
 import QuickSaveModal from './components/QuickSaveModal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
+import DeepReadProgress from './components/DeepReadProgress';
 import { ToastProvider } from './contexts/ToastContext';
 import { useFolderStore } from './store/folderStore';
 import Sidebar from './pages/Sidebar';
@@ -166,6 +167,7 @@ export default function App() {
                 />
 
                 <PWAInstallPrompt />
+                <DeepReadProgress />
             </ToastProvider>
         </BrowserRouter>
     );

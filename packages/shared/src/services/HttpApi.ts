@@ -168,7 +168,8 @@ export class HttpApi extends FavoritesApi {
         if (params) {
             Object.entries(params).forEach(([key, value]) => {
                 if (value !== undefined && value !== null && String(value) !== '') {
-                    searchParams.set(key, String(value));
+                    const serialized = typeof value === 'boolean' ? (value ? '1' : '0') : String(value);
+                    searchParams.set(key, serialized);
                 }
             });
         }
@@ -329,7 +330,8 @@ export class HttpApi extends FavoritesApi {
         if (params) {
             Object.entries(params).forEach(([key, value]) => {
                 if (value !== undefined && value !== null && String(value) !== '') {
-                    searchParams.set(key, String(value));
+                    const serialized = typeof value === 'boolean' ? (value ? '1' : '0') : String(value);
+                    searchParams.set(key, serialized);
                 }
             });
         }
@@ -364,10 +366,11 @@ export class HttpApi extends FavoritesApi {
 
     // ==================== AI ====================
 
-    async extractSummary(url: string): Promise<{ summary: string }> {
+    async extractSummary(url: string, options?: { signal?: AbortSignal }): Promise<{ summary: string }> {
         return this.request<{ summary: string }>('/ai/summarize', {
             method: 'POST',
             body: JSON.stringify({ url }),
+            signal: options?.signal,
         });
     }
 
@@ -474,7 +477,7 @@ export class HttpApi extends FavoritesApi {
         throw new Error('AI 设置功能仅在桌面端可用');
     }
 
-    async testAiConnection(): Promise<{ success: boolean; model: string; message: string }> {
+    async testAiConnection(_config?: AiConfig): Promise<{ success: boolean; model: string; message: string }> {
         throw new Error('AI 设置功能仅在桌面端可用');
     }
 }

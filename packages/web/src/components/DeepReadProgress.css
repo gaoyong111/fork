@@ -1,0 +1,222 @@
+/**
+ * DeepReadProgress 浮条样式 - 温润书房风格
+ * 底部固定浮条 + 可展开队列列表
+ */
+
+.deep-read-progress {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    font-size: var(--font-size-sm);
+}
+
+/* 精简模式 - 单行进度条 */
+.deep-read-progress-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background-color: var(--color-primary-bg);
+    border-top: 1px solid var(--color-primary-light);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+.deep-read-progress-bar:hover {
+    background-color: var(--color-bg-hover);
+}
+
+.deep-read-progress-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    min-width: 0;
+}
+
+.deep-read-progress-active {
+    color: var(--color-primary-dark);
+    font-weight: 500;
+}
+
+.deep-read-progress-paused {
+    color: var(--color-text-secondary);
+    font-weight: 500;
+}
+
+.deep-read-progress-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.deep-read-progress-btn {
+    padding: 2px var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    background-color: var(--color-bg-white);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.deep-read-progress-btn:hover {
+    background-color: var(--color-bg-hover);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.deep-read-progress-btn-danger {
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+.deep-read-progress-btn-danger:hover {
+    background-color: var(--color-danger);
+    color: var(--color-text-inverse);
+}
+
+.deep-read-progress-expand-btn,
+.deep-read-progress-collapse-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+}
+
+/* 展开模式 - 队列列表 */
+.deep-read-progress-expanded {
+    background-color: var(--color-bg-white);
+    border-top: 1px solid var(--color-primary-light);
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.deep-read-progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background-color: var(--color-primary-bg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.deep-read-progress-title {
+    font-weight: 500;
+    color: var(--color-primary-dark);
+}
+
+.deep-read-progress-list {
+    padding: var(--spacing-sm);
+}
+
+/* 单个任务条目 */
+.deep-read-task-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.deep-read-task-item.current {
+    background-color: var(--color-primary-bg);
+}
+
+.deep-read-task-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 60px;
+}
+
+.status-pending {
+    color: var(--color-text-tertiary);
+}
+
+.status-processing {
+    color: var(--color-primary);
+    font-weight: 500;
+}
+
+.status-done {
+    color: var(--color-success);
+}
+
+.status-error {
+    color: var(--color-danger);
+}
+
+.deep-read-spinner {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--color-primary-light);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: deep-read-spin 0.6s linear infinite;
+}
+
+@keyframes deep-read-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.deep-read-task-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.deep-read-task-error {
+    color: var(--color-danger);
+    font-size: var(--font-size-xs);
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.deep-read-task-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.deep-read-task-btn {
+    padding: 2px 6px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xs);
+    font-size: 10px;
+    color: var(--color-text-tertiary);
+    background: transparent;
+    cursor: pointer;
+}
+
+.deep-read-task-btn:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.deep-read-task-btn-danger:hover {
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+.deep-read-progress-footer {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+}

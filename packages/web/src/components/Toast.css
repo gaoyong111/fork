@@ -37,17 +37,17 @@
 /* 类型颜色 */
 .toast-item.success {
     border-left-color: var(--color-success);
-    background-color: #f0f7f2;
+    background-color: var(--color-success-bg);
 }
 
 .toast-item.error {
     border-left-color: var(--color-danger);
-    background-color: #fdf2f2;
+    background-color: var(--color-danger-bg);
 }
 
 .toast-item.warning {
     border-left-color: var(--color-warning);
-    background-color: #fffbf0;
+    background-color: var(--color-warning-bg);
 }
 
 .toast-item.info {

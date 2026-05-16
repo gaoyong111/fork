@@ -72,7 +72,7 @@ export abstract class FavoritesApi {
 
     // ==================== AI ====================
 
-    abstract extractSummary(url: string): Promise<{ summary: string }>;
+    abstract extractSummary(url: string, options?: { signal?: AbortSignal }): Promise<{ summary: string }>;
 
     // ==================== 导入/导出 ====================
 
@@ -94,5 +94,5 @@ export abstract class FavoritesApi {
 
     abstract getAiConfig(): Promise<AiConfig>;
     abstract setAiConfig(config: AiConfig): Promise<AiConfig>;
-    abstract testAiConnection(): Promise<{ success: boolean; model: string; message: string }>;
+    abstract testAiConnection(config?: AiConfig): Promise<{ success: boolean; model: string; message: string }>;
 }

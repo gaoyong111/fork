@@ -103,7 +103,8 @@ export default function Sidebar({ onFolderReorder }: SidebarProps) {
      * 选中文件夹
      */
     const handleSelectFolder = (folderId: string | null) => {
-        const newParams = new URLSearchParams();
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('folder');
         if (folderId) {
             newParams.set('folder', folderId);
         }
@@ -115,7 +116,8 @@ export default function Sidebar({ onFolderReorder }: SidebarProps) {
      * 选中标签
      */
     const handleSelectTag = (tagId: string | null) => {
-        const newParams = new URLSearchParams();
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('tag');
         if (tagId) {
             newParams.set('tag', tagId);
         }
@@ -184,8 +186,10 @@ export default function Sidebar({ onFolderReorder }: SidebarProps) {
      * 取消创建文件夹
      */
     const handleCancelCreateFolder = () => {
-        setIsCreatingFolder(false);
-        setNewFolderName('');
+        setTimeout(() => {
+            setIsCreatingFolder(false);
+            setNewFolderName('');
+        }, 150);
     };
 
     /**

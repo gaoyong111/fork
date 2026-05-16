@@ -11,8 +11,14 @@
     --color-primary-bg: #fef3c7;
 
     --color-success: #4a7c59;
+    --color-success-bg: #f0fdf4;
     --color-warning: #b8860b;
+    --color-warning-bg: #fffbf0;
     --color-danger: #b75454;
+    --color-danger-light: #fecaca;
+    --color-danger-bg: #fef2f2;
+    --color-danger-dark: #a34646;
+    --color-error-bg: #fef2f2;
 
     --color-bg: #f6f2ec;
     --color-bg-white: #fefcf8;
@@ -24,7 +30,8 @@
 
     --color-text-primary: #2c2416;
     --color-text-secondary: #6b5e4e;
-    --color-text-tertiary: #9c8e7c;
+    --color-text-tertiary: #7a6d5c;
+    --color-text-quaternary: #c4b8a6;
     --color-text-inverse: #ffffff;
 
     /* 间距 */
@@ -34,6 +41,7 @@
     --spacing-lg: 16px;
     --spacing-xl: 24px;
     --spacing-2xl: 32px;
+    --spacing-3xl: 48px;
 
     /* 圆角 - 更柔和 */
     --radius-sm: 4px;
@@ -45,6 +53,7 @@
     --shadow-sm: 0 1px 2px rgba(44, 36, 22, 0.06);
     --shadow-md: 0 4px 6px -1px rgba(44, 36, 22, 0.08), 0 2px 4px -2px rgba(44, 36, 22, 0.05);
     --shadow-lg: 0 10px 15px -3px rgba(44, 36, 22, 0.08), 0 4px 6px -4px rgba(44, 36, 22, 0.04);
+    --shadow-xl: 0 20px 60px rgba(44, 36, 22, 0.25);
 
     /* 布局 */
     --sidebar-width: 280px;
@@ -54,6 +63,13 @@
     /* 过渡 */
     --transition-fast: 150ms ease;
     --transition-normal: 250ms ease;
+    --transition-slow: 400ms ease;
+
+    /* 透明度 */
+    --opacity-disabled: 0.5;
+
+    /* 遮罩 */
+    --overlay-bg: rgba(44, 36, 22, 0.5);
 
     /* 字体 */
     --font-serif: 'Noto Serif SC', 'Georgia', serif;
@@ -147,4 +163,15 @@ img {
 ::selection {
     background-color: var(--color-primary-bg);
     color: var(--color-primary-dark);
+}
+
+/* 全局 focus-visible 规范 */
+:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+/* 统一旋转动画 */
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }

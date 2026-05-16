@@ -40,6 +40,8 @@ function FolderTreeNode({
     onFolderReorder,
     onFolderUpdated,
     depth,
+    activeMenuId,
+    setActiveMenuId,
 }: {
     folder: Folder;
     selectedFolderId: string | null;
@@ -48,11 +50,12 @@ function FolderTreeNode({
     onFolderReorder?: (folderId: string, newSortOrder: number) => void;
     onFolderUpdated?: () => void;
     depth: number;
+    activeMenuId: string | null;
+    setActiveMenuId: (id: string | null) => void;
 }) {
     const [expanded, setExpanded] = useState(true);
     const [isRenaming, setIsRenaming] = useState(false);
     const [renameValue, setRenameValue] = useState(folder.name);
-    const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
     const [renaming, setRenaming] = useState(false);
     const renameInputRef = useRef<HTMLInputElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -60,7 +63,7 @@ function FolderTreeNode({
     const { showToast, showConfirm } = useToast();
     const hasChildren = folder.children && folder.children.length > 0;
     const isSelected = selectedFolderId === folder.id;
-    const isMenuOpen = menuOpenId === folder.id;
+    const isMenuOpen = activeMenuId === folder.id;
 
     // 排序：文件夹拖拽排序
     const {
@@ -91,7 +94,7 @@ function FolderTreeNode({
 
         const handleClickOutside = (e: MouseEvent) => {
             if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-                setMenuOpenId(null);
+                setActiveMenuId(null);
             }
         };
 
@@ -120,7 +123,7 @@ function FolderTreeNode({
      */
     const handleMenuToggle = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setMenuOpenId(isMenuOpen ? null : folder.id);
+        setActiveMenuId(isMenuOpen ? null : folder.id);
     };
 
     /**
@@ -130,7 +133,7 @@ function FolderTreeNode({
         e.stopPropagation();
         setRenameValue(folder.name);
         setIsRenaming(true);
-        setMenuOpenId(null);
+        setActiveMenuId(null);
     };
 
     /**
@@ -182,7 +185,7 @@ function FolderTreeNode({
      */
     const handleDelete = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        setMenuOpenId(null);
+        setActiveMenuId(null);
 
         const confirmed = await showConfirm({
             title: '删除文件夹',
@@ -207,7 +210,7 @@ function FolderTreeNode({
      */
     const handleCreateSubFolder = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setMenuOpenId(null);
+        setActiveMenuId(null);
         onCreateFolder(folder.id);
     };
 
@@ -359,6 +362,8 @@ function FolderTreeNode({
                             onFolderReorder={onFolderReorder}
                             onFolderUpdated={onFolderUpdated}
                             depth={depth + 1}
+                            activeMenuId={activeMenuId}
+                            setActiveMenuId={setActiveMenuId}
                         />
                     ))}
                 </ul>
@@ -379,6 +384,8 @@ export default function FolderTree({
     onFolderReorder,
     onFolderUpdated,
 }: FolderTreeProps) {
+    const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+
     return (
         <div className="folder-tree">
             <div className="folder-tree-header">
@@ -413,6 +420,8 @@ export default function FolderTree({
                         onFolderReorder={onFolderReorder}
                         onFolderUpdated={onFolderUpdated}
                         depth={0}
+                        activeMenuId={activeMenuId}
+                        setActiveMenuId={setActiveMenuId}
                     />
                 ))}
             </ul>

@@ -28,7 +28,7 @@ export const useFolderStore = create<FolderState>((set, get) => ({
 
     fetchFolders: async () => {
         const state = get();
-        if (state.initialized && state.folders.length > 0) return;
+        if (state.initialized) return;
 
         set({ loading: true });
         try {

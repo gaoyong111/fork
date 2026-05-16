@@ -1,9 +1,12 @@
 use reqwest;
 use scraper::{Html, Selector};
 use crate::db::get_db;
+use tokio::task;
 
 const FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+const AI_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
 const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const MAX_HTML_SIZE: usize = 2 * 1024 * 1024; // 2MB
 
 /** 从 DB settings 读取 AI 配置 */
 fn get_ai_config() -> (String, String, String) {
@@ -58,13 +61,14 @@ pub async fn extract_summary(url: String) -> Result<serde_json::Value, String> {
         return Err("AI 服务未配置，请在设置中填写 API Key".to_string());
     }
 
-    // 1. 抓取页面
+    // 共用 Client，通过请求级 timeout 覆盖 client 级超时
     let client = reqwest::Client::builder()
         .timeout(FETCH_TIMEOUT)
         .user_agent(USER_AGENT)
         .build()
         .map_err(|e| e.to_string())?;
 
+    // 1. 抓取页面
     let response = client.get(&url)
         .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
         .header("Accept-Language", "zh-CN,zh;q=0.9")
@@ -73,13 +77,22 @@ pub async fn extract_summary(url: String) -> Result<serde_json::Value, String> {
         .map_err(|e| e.to_string())?;
 
     let html = response.text().await.map_err(|e| e.to_string())?;
-    let page_text = extract_page_text(&html, 8000);
+
+    // 限制页面大小，避免超大 HTML 导致解析阻塞
+    if html.len() > MAX_HTML_SIZE {
+        return Err("页面内容过大（超过2MB），无法处理".to_string());
+    }
+
+    // HTML 解析移到 spawn_blocking，避免阻塞 tokio worker 线程
+    let page_text = task::spawn_blocking(move || extract_page_text(&html, 8000))
+        .await
+        .map_err(|e| e.to_string())?;
 
     if page_text.is_empty() || page_text.len() < 50 {
         return Err("无法提取页面内容，请确认链接可访问".to_string());
     }
 
-    // 2. 调用 AI API
+    // 2. 调用 AI API（请求级 120s 超时覆盖 client 级 15s）
     let chat_url = format!("{}/chat/completions", api_url);
 
     let request_body = serde_json::json!({
@@ -99,6 +112,7 @@ pub async fn extract_summary(url: String) -> Result<serde_json::Value, String> {
     });
 
     let ai_response = client.post(&chat_url)
+        .timeout(AI_TIMEOUT)
         .header("Content-Type", "application/json")
         .header("Authorization", format!("Bearer {}", api_key))
         .json(&request_body)

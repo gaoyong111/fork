@@ -73,6 +73,11 @@
     border-color: var(--color-primary-light);
 }
 
+.tag-list-item.empty {
+    opacity: 0.5;
+    color: var(--color-text-tertiary);
+}
+
 .tag-list-dot {
     width: 8px;
     height: 8px;

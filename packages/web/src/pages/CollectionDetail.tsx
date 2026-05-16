@@ -5,8 +5,10 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import { useFolderStore, type FolderState } from '../store/folderStore';
 import { useTagStore, type TagState } from '../store/tagStore';
+import { useDeepReadStore } from '../store/deepReadStore';
 import type { Collection, Folder } from '../types';
 import * as api from '../services/api';
 import { formatDate } from '../utils/format';
@@ -26,7 +28,9 @@ export default function CollectionDetail() {
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [extracting, setExtracting] = useState(false);
+    const deepReadTask = useDeepReadStore((s) => s.tasks.find((t) => t.collectionId === (id ?? '')));
+    const completedContent = useDeepReadStore((s) => id ? s.completedContent[id] : undefined);
+    const enqueue = useDeepReadStore((s) => s.enqueue);
 
     // 编辑表单状态
     const [editTitle, setEditTitle] = useState('');
@@ -132,7 +136,7 @@ export default function CollectionDetail() {
 
         const ok = await showConfirm({
             title: '删除确认',
-            message: '确定要删除这个收藏吗？此操作不可撤销。',
+            message: '确定要删除这个收藏吗？删除后可在回收站恢复。',
             danger: true,
         });
         if (!ok) return;
@@ -157,31 +161,26 @@ export default function CollectionDetail() {
         try {
             const result = await api.toggleFavorite(collection.id);
             setCollection({ ...collection, isFavorite: result.isFavorite });
+            useFolderStore.getState().invalidate();
         } catch (err) {
             console.error('切换星标失败:', err);
         }
     };
 
     /**
-     * AI 提取文章内容并生成精读摘要
+     * 提取精读 - 插队到队列首位
      */
-    const handleExtractSummary = async () => {
+    const handleExtractSummary = () => {
         if (!collection || !collection.url) return;
+        enqueue(collection.id, collection.url, collection.title, 1);
+    };
 
-        try {
-            setExtracting(true);
-            const result = await api.extractSummary(collection.url);
-            const updated = await api.updateCollection(collection.id, {
-                content: result.summary,
-            });
-            setCollection(updated);
-            showToast('精读完成', 'success');
-        } catch (err) {
-            console.error('AI 精读失败:', err);
-            showToast('AI 精读失败，请稍后重试', 'error');
-        } finally {
-            setExtracting(false);
-        }
+    /**
+     * 取消精读 - 从队列移除
+     */
+    const handleCancelExtract = () => {
+        if (!id) return;
+        useDeepReadStore.getState().cancelTask(id);
     };
 
     /**
@@ -220,8 +219,15 @@ export default function CollectionDetail() {
         return (
             <div className="collection-detail">
                 <div className="collection-detail-not-found">
-                    <p>收藏项不存在</p>
-                    <Link to="/">返回首页</Link>
+                    <div className="collection-detail-not-found-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                            <polyline points="15 3 21 3 21 9" />
+                            <line x1="10" y1="14" x2="21" y2="3" />
+                        </svg>
+                    </div>
+                    <p>收藏项不存在或已被删除</p>
+                    <Link to="/" className="collection-detail-not-found-link">返回首页</Link>
                 </div>
             </div>
         );
@@ -280,18 +286,62 @@ export default function CollectionDetail() {
                             删除
                         </button>
                         {collection.type === 'link' && collection.url && (
-                            <button
-                                className="action-btn"
-                                onClick={handleExtractSummary}
-                                disabled={extracting}
-                                title="AI 自动提取文章内容并生成精读摘要"
-                            >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <polyline points="12 6 12 12 16 14" />
-                                </svg>
-                                {extracting ? '精读中...' : '提取精读'}
-                            </button>
+                            <>
+                                {!collection.content && !deepReadTask && (
+                                    <button
+                                        className="action-btn"
+                                        onClick={handleExtractSummary}
+                                        title="AI 精读，插队到队列首位"
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <circle cx="12" cy="12" r="10" />
+                                            <polyline points="12 6 12 12 16 14" />
+                                        </svg>
+                                        提取精读
+                                    </button>
+                                )}
+                                {deepReadTask?.status === 'pending' && (
+                                    <button
+                                        className="action-btn"
+                                        disabled
+                                        title="等待精读..."
+                                    >
+                                        等待精读...
+                                    </button>
+                                )}
+                                {deepReadTask?.status === 'processing' && (
+                                    <>
+                                        <button
+                                            className="action-btn"
+                                            disabled
+                                            title="精读中..."
+                                        >
+                                            <span className="deep-read-spinner-sm" />
+                                            精读中...
+                                        </button>
+                                        <button
+                                            className="action-btn action-btn-cancel"
+                                            onClick={handleCancelExtract}
+                                            title="取消精读"
+                                        >
+                                            取消
+                                        </button>
+                                    </>
+                                )}
+                                {deepReadTask?.status === 'error' && (
+                                    <button
+                                        className="action-btn"
+                                        onClick={handleExtractSummary}
+                                        title="重试精读"
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <circle cx="12" cy="12" r="10" />
+                                            <polyline points="12 6 12 12 16 14" />
+                                        </svg>
+                                        重试精读
+                                    </button>
+                                )}
+                            </>
                         )}
                     </>
                 ) : (
@@ -460,20 +510,22 @@ export default function CollectionDetail() {
                             </div>
                         )}
 
-                        {/* 精读内容（优先展示） */}
-                        {collection.content && (
+                        {/* 精读内容（优先展示，使用 completedContent 兜底刷新） */}
+                        {(collection.content || completedContent) && (
                             <div className="detail-section">
                                 <h3 className="detail-section-title">
-                                    {isHtmlContent(collection.content) ? 'AI 精读摘要' : '内容'}
+                                    {isHtmlContent(collection.content || completedContent || '') ? 'AI 精读摘要' : '内容'}
                                 </h3>
-                                {isHtmlContent(collection.content) ? (
+                                {isHtmlContent(collection.content || completedContent || '') ? (
                                     <div
                                         className="detail-content-rich"
-                                        dangerouslySetInnerHTML={{ __html: collection.content }}
+                                        role="document"
+                                        aria-label="AI 精读摘要内容"
+                                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(collection.content || completedContent || '') }}
                                     />
                                 ) : (
                                     <div className="detail-content-text">
-                                        {collection.content}
+                                        {collection.content || completedContent}
                                     </div>
                                 )}
                             </div>

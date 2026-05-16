@@ -12,14 +12,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(44, 36, 22, 0.5);
+    background: var(--overlay-bg);
     animation: tagManageOverlayIn 0.2s ease-out;
 }
 
 .tag-manage-modal {
     background-color: var(--color-bg-white);
     border-radius: var(--radius-lg);
-    box-shadow: 0 20px 60px rgba(44, 36, 22, 0.25);
+    box-shadow: var(--shadow-xl);
     width: 420px;
     max-width: 90vw;
     max-height: 80vh;

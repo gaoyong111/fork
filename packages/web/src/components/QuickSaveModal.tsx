@@ -8,8 +8,80 @@ import { useState, useEffect, useCallback } from 'react';
 import * as api from '../services/api';
 import { useFolderStore, type FolderState } from '../store/folderStore';
 import { useTagStore, type TagState } from '../store/tagStore';
+import { useDeepReadStore } from '../store/deepReadStore';
 import type { ClipboardDetectResult } from '../hooks/useClipboardDetector';
+import type { Folder } from '../types';
 import './QuickSaveModal.css';
+
+/**
+ * 文件夹选择器节点 - 递归渲染文件夹层级
+ * 支持展开/折叠和选中，不包含拖拽、重命名等复杂交互
+ * @param props - 组件属性
+ */
+function FolderPickerItem({
+    folder,
+    selectedFolderId,
+    onSelect,
+    depth,
+}: {
+    folder: Folder;
+    selectedFolderId: string | null;
+    onSelect: (folderId: string) => void;
+    depth: number;
+}) {
+    const [expanded, setExpanded] = useState(true);
+    const hasChildren = folder.children && folder.children.length > 0;
+    const isSelected = selectedFolderId === folder.id;
+
+    /** 切换展开/折叠，不影响选中 */
+    const handleToggle = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setExpanded(!expanded);
+    };
+
+    return (
+        <>
+            <button
+                className={`quick-save-folder-item ${isSelected ? 'selected' : ''}`}
+                style={{ paddingLeft: `${depth * 16 + 12}px` }}
+                onClick={() => onSelect(folder.id)}
+            >
+                <span
+                    className={`folder-picker-toggle ${!hasChildren ? 'invisible' : ''}`}
+                    onClick={handleToggle}
+                >
+                    <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        style={{
+                            transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                            transition: 'transform 150ms ease',
+                        }}
+                    >
+                        <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                </span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+                </svg>
+                {folder.name}
+            </button>
+            {hasChildren && expanded && folder.children!.map((child) => (
+                <FolderPickerItem
+                    key={child.id}
+                    folder={child}
+                    selectedFolderId={selectedFolderId}
+                    onSelect={onSelect}
+                    depth={depth + 1}
+                />
+            ))}
+        </>
+    );
+}
 
 interface QuickSaveModalProps {
     /** 是否显示弹窗 */
@@ -51,10 +123,12 @@ export default function QuickSaveModal({
      */
     useEffect(() => {
         if (visible) {
-            Promise.all([
-                useFolderStore.getState().fetchFolders(),
-                useTagStore.getState().fetchTags(),
-            ]);
+            (async () => {
+                await Promise.all([
+                    useFolderStore.getState().fetchFolders(),
+                    useTagStore.getState().fetchTags(),
+                ]);
+            })();
             setShowFolderPicker(false);
             setSelectedFolderId(null);
             setSelectedTagIds([]);
@@ -105,7 +179,7 @@ export default function QuickSaveModal({
         setError(null);
 
         try {
-            await api.createCollection({
+            const result = await api.createCollection({
                 title: pageTitle || detectedUrl.domain,
                 url: detectedUrl.url,
                 type: 'link',
@@ -114,6 +188,15 @@ export default function QuickSaveModal({
                 folderId: folderId || undefined,
                 tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
             });
+
+            // 链接类型自动入队精读
+            if (result?.url) {
+                useDeepReadStore.getState().enqueue(
+                    result.id,
+                    result.url,
+                    result.title
+                );
+            }
 
             setSaveSuccess(true);
 
@@ -126,7 +209,7 @@ export default function QuickSaveModal({
         } finally {
             setIsSaving(false);
         }
-    }, [detectedUrl, selectedTagIds, onSuccess]);
+    }, [detectedUrl, selectedTagIds, onSuccess, pageTitle, pageDescription, pageCoverUrl]);
 
     /**
      * 切换标签选择
@@ -224,22 +307,24 @@ export default function QuickSaveModal({
                                         className={`quick-save-folder-item ${selectedFolderId === null ? 'selected' : ''}`}
                                         onClick={() => setSelectedFolderId(null)}
                                     >
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <span className="folder-picker-toggle invisible">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <polyline points="9 18 15 12 9 6" />
+                                            </svg>
+                                        </span>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                             <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
                                         </svg>
                                         收件箱
                                     </button>
                                     {folders.map((folder) => (
-                                        <button
+                                        <FolderPickerItem
                                             key={folder.id}
-                                            className={`quick-save-folder-item ${selectedFolderId === folder.id ? 'selected' : ''}`}
-                                            onClick={() => setSelectedFolderId(folder.id)}
-                                        >
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-                                            </svg>
-                                            {folder.name}
-                                        </button>
+                                            folder={folder}
+                                            selectedFolderId={selectedFolderId}
+                                            onSelect={setSelectedFolderId}
+                                            depth={0}
+                                        />
                                     ))}
                                 </div>
                             </div>

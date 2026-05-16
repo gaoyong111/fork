@@ -31,10 +31,10 @@ export default function TagList({ tags, selectedTagId, onSelectTag, onManageTags
             </div>
 
             <div className="tag-list-items">
-                {tags.filter((tag) => tag.collectionCount).map((tag) => (
+                {tags.map((tag) => (
                     <button
                         key={tag.id}
-                        className={`tag-list-item ${selectedTagId === tag.id ? 'selected' : ''}`}
+                        className={`tag-list-item ${selectedTagId === tag.id ? 'selected' : ''} ${!tag.collectionCount ? 'empty' : ''}`}
                         onClick={() => onSelectTag(selectedTagId === tag.id ? null : tag.id)}
                     >
                         <span
@@ -42,7 +42,9 @@ export default function TagList({ tags, selectedTagId, onSelectTag, onManageTags
                             style={{ backgroundColor: tag.color }}
                         />
                         <span className="tag-list-name">{tag.name}</span>
-                        <span className="tag-list-count">{tag.collectionCount}</span>
+                        {(tag.collectionCount ?? 0) > 0 && (
+                            <span className="tag-list-count">{tag.collectionCount ?? 0}</span>
+                        )}
                     </button>
                 ))}
 

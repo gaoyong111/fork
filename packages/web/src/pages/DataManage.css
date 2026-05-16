@@ -10,6 +10,7 @@
 .data-manage-title {
     font-size: var(--font-size-xl);
     font-weight: 600;
+    font-family: var(--font-serif);
     color: var(--color-text-primary);
     margin-bottom: var(--spacing-xl);
 }
@@ -60,7 +61,7 @@
 }
 
 .data-manage-btn:disabled {
-    opacity: 0.6;
+    opacity: var(--opacity-disabled);
     cursor: not-allowed;
 }
 
@@ -113,13 +114,7 @@
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-top-color: #fff;
     border-radius: 50%;
-    animation: data-manage-spin 0.6s linear infinite;
-}
-
-@keyframes data-manage-spin {
-    to {
-        transform: rotate(360deg);
-    }
+    animation: spin 0.6s linear infinite;
 }
 
 /* 拖拽上传区域 */
@@ -291,6 +286,10 @@
     margin-bottom: var(--spacing-sm);
 }
 
+.data-manage-backup-item:hover {
+    background-color: var(--color-bg-hover);
+}
+
 .data-manage-backup-info {
     display: flex;
     flex-direction: column;
@@ -345,6 +344,35 @@
 .data-manage-settings-input:focus {
     outline: none;
     border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-bg);
+}
+
+/* API Key 输入组 */
+.data-manage-settings-input-group {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.data-manage-settings-input-group .data-manage-settings-input {
+    flex: 1;
+}
+
+.data-manage-settings-input-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-bg-white);
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.data-manage-settings-input-toggle:hover {
+    color: var(--color-text-secondary);
+    background-color: var(--color-bg-hover);
 }
 
 /* AI 测试反馈 */
@@ -358,15 +386,15 @@
 }
 
 .data-manage-ai-feedback.success {
-    background-color: var(--color-success-bg, #f0fdf4);
-    color: var(--color-success, #16a34a);
-    border: 1px solid var(--color-success, #16a34a);
+    background-color: var(--color-success-bg);
+    color: var(--color-success);
+    border: 1px solid var(--color-success);
 }
 
 .data-manage-ai-feedback.error {
-    background-color: var(--color-error-bg, #fef2f2);
-    color: var(--color-error, #dc2626);
-    border: 1px solid var(--color-error, #dc2626);
+    background-color: var(--color-danger-bg);
+    color: var(--color-danger);
+    border: 1px solid var(--color-danger);
 }
 
 .data-manage-ai-feedback-model {

@@ -12,14 +12,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(44, 36, 22, 0.5);
+    background: var(--overlay-bg);
     animation: confirmOverlayIn 0.2s ease-out;
 }
 
 .confirm-modal {
     background-color: var(--color-bg-white);
     border-radius: var(--radius-lg);
-    box-shadow: 0 20px 60px rgba(44, 36, 22, 0.25);
+    box-shadow: var(--shadow-xl);
     padding: var(--spacing-xl);
     min-width: 320px;
     max-width: 420px;
@@ -38,6 +38,7 @@
     color: var(--color-text-secondary);
     line-height: 1.5;
     margin: 0 0 var(--spacing-xl) 0;
+    white-space: pre-line;
 }
 
 .confirm-actions {
@@ -78,7 +79,7 @@
 }
 
 .confirm-btn-confirm.danger:hover {
-    background-color: #a34646;
+    background-color: var(--color-danger-dark);
 }
 
 @keyframes confirmOverlayIn {
