@@ -3,12 +3,13 @@
  * 查看收藏内容，支持编辑
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { useFolderStore, type FolderState } from '../store/folderStore';
 import { useTagStore, type TagState } from '../store/tagStore';
 import { useDeepReadStore } from '../store/deepReadStore';
+import { useCollectionStore } from '../store/collectionStore';
 import type { Collection, Folder } from '../types';
 import * as api from '../services/api';
 import { formatDate } from '../utils/format';
@@ -24,7 +25,7 @@ export default function CollectionDetail() {
     const navigate = useNavigate();
     const { showToast, showConfirm } = useToast();
 
-    const [collection, setCollection] = useState<Collection | null>(null);
+    const [localCollection, setLocalCollection] = useState<Collection | null>(null);
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -52,6 +53,7 @@ export default function CollectionDetail() {
 
     /**
      * 加载收藏详情
+     * 优先从 collectionStore 读取，若不存在则通过 API 获取
      */
     async function loadDetail() {
         try {
@@ -61,9 +63,18 @@ export default function CollectionDetail() {
                 useFolderStore.getState().fetchFolders(),
                 useTagStore.getState().fetchTags(),
             ]);
-            const detailData = await api.getCollectionById(id!);
 
-            setCollection(detailData);
+            // 优先从 collectionStore 读取
+            const storeItem = useCollectionStore.getState().collections.find((c) => c.id === id);
+            let detailData: Collection;
+
+            if (storeItem && storeItem.content) {
+                detailData = storeItem;
+            } else {
+                detailData = await api.getCollectionById(id!);
+            }
+
+            setLocalCollection(detailData);
 
             // 初始化编辑表单
             setEditTitle(detailData.title);
@@ -91,13 +102,13 @@ export default function CollectionDetail() {
      */
     const handleCancel = () => {
         setEditing(false);
-        if (collection) {
-            setEditTitle(collection.title);
-            setEditDescription(collection.description || '');
-            setEditUrl(collection.url || '');
-            setEditContent(collection.content || '');
-            setEditFolderId(collection.folderId);
-            setEditTagIds(collection.tags.map((t) => t.id));
+        if (localCollection) {
+            setEditTitle(localCollection.title);
+            setEditDescription(localCollection.description || '');
+            setEditUrl(localCollection.url || '');
+            setEditContent(localCollection.content || '');
+            setEditFolderId(localCollection.folderId);
+            setEditTagIds(localCollection.tags.map((t) => t.id));
         }
     };
 
@@ -105,11 +116,11 @@ export default function CollectionDetail() {
      * 保存编辑
      */
     const handleSave = async () => {
-        if (!collection) return;
+        if (!localCollection) return;
 
         try {
             setSaving(true);
-            const updated = await api.updateCollection(collection.id, {
+            const updated = await api.updateCollection(localCollection.id, {
                 title: editTitle,
                 description: editDescription || undefined,
                 url: editUrl || undefined,
@@ -118,7 +129,7 @@ export default function CollectionDetail() {
                 tagIds: editTagIds,
             });
 
-            setCollection(updated);
+            setLocalCollection(updated);
             setEditing(false);
         } catch (err) {
             console.error('保存失败:', err);
@@ -129,50 +140,49 @@ export default function CollectionDetail() {
     };
 
     /**
-     * 删除收藏
+     * 删除收藏 - 乐观删除 + Undo Toast
      */
-    const handleDelete = async () => {
-        if (!collection) return;
-
-        const ok = await showConfirm({
-            title: '删除确认',
-            message: '确定要删除这个收藏吗？删除后可在回收站恢复。',
+    const handleDelete = useCallback(async () => {
+        if (!localCollection) return;
+        const confirm = await showConfirm({
+            title: '确认删除',
+            message: `确定要删除 "${localCollection.title}" 吗？`,
+            confirmText: '删除',
             danger: true,
         });
-        if (!ok) return;
+        if (!confirm) return;
 
-        try {
-            await api.deleteCollection(collection.id);
-            await useFolderStore.getState().invalidate();
-            await useTagStore.getState().invalidate();
-            navigate('/');
-        } catch (err) {
-            console.error('删除失败:', err);
-            showToast('删除失败', 'error');
-        }
-    };
+        useCollectionStore.getState().optimisticDelete(localCollection.id);
+        showToast(`已删除 "${localCollection.title}"`, 'info', {
+            label: '撤销',
+            action: () => {
+                const undo = useCollectionStore.getState().pendingUndos.find(
+                    (u) => u.targetId === localCollection.id && u.type === 'delete'
+                );
+                if (undo) {
+                    useCollectionStore.getState().undo(undo.id);
+                    showToast(`已恢复 "${localCollection.title}"`, 'success');
+                }
+            },
+        });
+        navigate('/');
+    }, [localCollection, showConfirm, showToast, navigate]);
 
     /**
-     * 切换星标
+     * 切换星标 - 乐观更新
      */
-    const handleToggleFavorite = async () => {
-        if (!collection) return;
-
-        try {
-            const result = await api.toggleFavorite(collection.id);
-            setCollection({ ...collection, isFavorite: result.isFavorite });
-            useFolderStore.getState().invalidate();
-        } catch (err) {
-            console.error('切换星标失败:', err);
-        }
-    };
+    const handleToggleFavorite = useCallback(() => {
+        if (!localCollection) return;
+        useCollectionStore.getState().optimisticToggleFavorite(localCollection.id);
+        setLocalCollection({ ...localCollection, isFavorite: !localCollection.isFavorite });
+    }, [localCollection]);
 
     /**
      * 提取精读 - 插队到队列首位
      */
     const handleExtractSummary = () => {
-        if (!collection || !collection.url) return;
-        enqueue(collection.id, collection.url, collection.title, 1);
+        if (!localCollection || !localCollection.url) return;
+        enqueue(localCollection.id, localCollection.url, localCollection.title, 1);
     };
 
     /**
@@ -215,7 +225,7 @@ export default function CollectionDetail() {
         );
     }
 
-    if (!collection) {
+    if (!localCollection) {
         return (
             <div className="collection-detail">
                 <div className="collection-detail-not-found">
@@ -248,14 +258,14 @@ export default function CollectionDetail() {
             {/* 面包屑导航 */}
             <div className="collection-detail-breadcrumb">
                 <Link to="/">全部收藏</Link>
-                {collection.folder && (
+                {localCollection.folder && (
                     <>
                         <span className="breadcrumb-sep">/</span>
-                        <span>{collection.folder.name}</span>
+                        <span>{localCollection.folder.name}</span>
                     </>
                 )}
                 <span className="breadcrumb-sep">/</span>
-                <span className="breadcrumb-current">{collection.title}</span>
+                <span className="breadcrumb-current">{localCollection.title}</span>
             </div>
 
             {/* 操作栏 */}
@@ -270,13 +280,13 @@ export default function CollectionDetail() {
                             编辑
                         </button>
                         <button
-                            className={`action-btn ${collection.isFavorite ? 'warning' : ''}`}
+                            className={`action-btn ${localCollection.isFavorite ? 'warning' : ''}`}
                             onClick={handleToggleFavorite}
                         >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill={collection.isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill={localCollection.isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
                                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                             </svg>
-                            {collection.isFavorite ? '取消星标' : '添加星标'}
+                            {localCollection.isFavorite ? '取消星标' : '添加星标'}
                         </button>
                         <button className="action-btn danger" onClick={handleDelete}>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -285,9 +295,9 @@ export default function CollectionDetail() {
                             </svg>
                             删除
                         </button>
-                        {collection.type === 'link' && collection.url && (
+                        {localCollection.type === 'link' && localCollection.url && (
                             <>
-                                {!collection.content && !deepReadTask && (
+                                {!localCollection.content && !deepReadTask && (
                                     <button
                                         className="action-btn"
                                         onClick={handleExtractSummary}
@@ -452,13 +462,13 @@ export default function CollectionDetail() {
                     /* 查看模式 */
                     <div className="detail-view">
                         {/* 封面图 */}
-                        {collection.thumbnailUrl && (
+                        {localCollection.thumbnailUrl && (
                             <div className="detail-cover">
-                                <img src={collection.thumbnailUrl} alt={collection.title} />
+                                <img src={localCollection.thumbnailUrl} alt={localCollection.title} />
                             </div>
                         )}
 
-                        <h1 className="detail-title">{collection.title}</h1>
+                        <h1 className="detail-title">{localCollection.title}</h1>
 
                         {/* 元信息 */}
                         <div className="detail-meta">
@@ -469,18 +479,18 @@ export default function CollectionDetail() {
                                     <line x1="8" y1="2" x2="8" y2="6" />
                                     <line x1="3" y1="10" x2="21" y2="10" />
                                 </svg>
-                                创建于 {formatDate(collection.createdAt)}
+                                创建于 {formatDate(localCollection.createdAt)}
                             </span>
                             <span className="detail-meta-item">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <circle cx="12" cy="12" r="10" />
                                     <polyline points="12 6 12 12 16 14" />
                                 </svg>
-                                更新于 {formatDate(collection.updatedAt)}
+                                更新于 {formatDate(localCollection.updatedAt)}
                             </span>
-                            {collection.type === 'link' && collection.url && (
+                            {localCollection.type === 'link' && localCollection.url && (
                                 <a
-                                    href={collection.url}
+                                    href={localCollection.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="detail-meta-item detail-link"
@@ -496,9 +506,9 @@ export default function CollectionDetail() {
                         </div>
 
                         {/* 标签 */}
-                        {collection.tags.length > 0 && (
+                        {localCollection.tags.length > 0 && (
                             <div className="detail-tags">
-                                {collection.tags.map((tag) => (
+                                {localCollection.tags.map((tag) => (
                                     <span
                                         key={tag.id}
                                         className="detail-tag"
@@ -511,31 +521,31 @@ export default function CollectionDetail() {
                         )}
 
                         {/* 精读内容（优先展示，使用 completedContent 兜底刷新） */}
-                        {(collection.content || completedContent) && (
+                        {(localCollection.content || completedContent) && (
                             <div className="detail-section">
                                 <h3 className="detail-section-title">
-                                    {isHtmlContent(collection.content || completedContent || '') ? 'AI 精读摘要' : '内容'}
+                                    {isHtmlContent(localCollection.content || completedContent || '') ? 'AI 精读摘要' : '内容'}
                                 </h3>
-                                {isHtmlContent(collection.content || completedContent || '') ? (
+                                {isHtmlContent(localCollection.content || completedContent || '') ? (
                                     <div
                                         className="detail-content-rich"
                                         role="document"
                                         aria-label="AI 精读摘要内容"
-                                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(collection.content || completedContent || '') }}
+                                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(localCollection.content || completedContent || '') }}
                                     />
                                 ) : (
                                     <div className="detail-content-text">
-                                        {collection.content || completedContent}
+                                        {localCollection.content || completedContent}
                                     </div>
                                 )}
                             </div>
                         )}
 
                         {/* 描述 */}
-                        {collection.description && (
+                        {localCollection.description && (
                             <div className="detail-section">
                                 <h3 className="detail-section-title">描述</h3>
-                                <p className="detail-description">{collection.description}</p>
+                                <p className="detail-description">{localCollection.description}</p>
                             </div>
                         )}
                     </div>
