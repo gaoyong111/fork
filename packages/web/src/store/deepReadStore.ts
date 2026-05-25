@@ -174,6 +174,10 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
                     [processingTask.collectionId]: updatedCollection?.content || '',
                 };
                 set({ tasks, currentTask: null, abortController: null, completedContent });
+                // 通知 collectionStore 更新对应条目的 content
+                document.dispatchEvent(new CustomEvent('deep-read-complete', {
+                    detail: { collectionId: processingTask.collectionId, content: updatedCollection?.content || '' },
+                }));
                 // 间隔后处理下一个
                 scheduleNextProcess(PROCESS_INTERVAL);
             })
