@@ -6,8 +6,8 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import * as api from '../services/api';
-import type { SearchResultItem, SearchParams } from '../types';
+import { useCollectionStore } from '../store/collectionStore';
+import type { SearchResultItem } from '../types';
 import './SearchOverlay.css';
 
 /** SearchOverlay 组件 props */
@@ -47,9 +47,8 @@ export default function SearchOverlay({ visible, onClose }: SearchOverlayProps) 
         }
         setLoading(true);
         try {
-            const params: SearchParams = { q: keyword.trim() };
-            const data = await api.searchCollections(params);
-            setResults(data.items);
+            const items = await useCollectionStore.getState().searchCollections(keyword.trim());
+            setResults(items);
             setSelectedIndex(-1);
         } catch (err) {
             console.error('搜索失败:', err);
@@ -207,7 +206,7 @@ export default function SearchOverlay({ visible, onClose }: SearchOverlayProps) 
                                         {TYPE_LABELS[item.type] || item.type}
                                     </span>
                                     <span className="search-result-title">{item.title}</span>
-                                    {(item as { isFavorite?: boolean }).isFavorite && (
+                                    {item.isFavorite && (
                                         <svg className="search-result-fav" width="14" height="14" viewBox="0 0 24 24" fill="var(--color-primary)" stroke="var(--color-primary)" strokeWidth="2">
                                             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                                         </svg>
