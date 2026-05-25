@@ -73,6 +73,8 @@ pub struct SearchResultItem {
     pub url: Option<String>,
     #[serde(rename = "thumbnailUrl")]
     pub cover_url: Option<String>,
+    pub folder_id: Option<String>,
+    pub is_favorite: bool,
     pub created_at: String,
     pub tags: Vec<Tag>,
     pub match_snippet: Option<String>,

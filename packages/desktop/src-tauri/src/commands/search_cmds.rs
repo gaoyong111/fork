@@ -36,7 +36,7 @@ pub fn search_collections(params: SearchParams) -> Result<PaginatedData<SearchRe
 
     // Step 1: FTS5 搜索获取 rowid 和 snippet
     let fts_results: Vec<(i64, Option<String>)> = db.prepare(
-        "SELECT rowid, snippet(collections_fts, '', '', '...', 20) as match_snippet FROM collections_fts WHERE collections_fts MATCH ?"
+        "SELECT rowid, snippet(collections_fts, -1, '<mark>', '</mark>', '...', 32) as match_snippet FROM collections_fts WHERE collections_fts MATCH ?"
     ).map_err(|e| e.to_string())?
     .query_map(params![fts_query], |row| {
         Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?))
@@ -135,6 +135,8 @@ pub fn search_collections(params: SearchParams) -> Result<PaginatedData<SearchRe
             rtype: c.rtype.clone(),
             url: c.url.clone(),
             cover_url: c.cover_url.clone(),
+            folder_id: c.folder_id.clone(),
+            is_favorite: c.is_favorite,
             created_at: c.created_at.clone(),
             tags: c.tags.clone(),
             match_snippet: snippet,
