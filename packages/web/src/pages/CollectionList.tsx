@@ -6,22 +6,20 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import SearchBar, { type SearchBarRef } from '../components/SearchBar';
+import SearchBar from '../components/SearchBar';
 import CollectionCard from '../components/CollectionCard';
 import SkeletonCard from '../components/SkeletonCard';
 import BatchActionBar from '../components/BatchActionBar';
 import FolderSelector from '../components/FolderSelector';
 import TagPicker from '../components/TagPicker';
 import { useToast } from '../contexts/ToastContext';
-import type { Collection, GetCollectionsParams } from '../types';
+import { useCollectionStore } from '../store/collectionStore';
+import type { Collection } from '../types';
 import { useFolderStore, type FolderState } from '../store/folderStore';
 import { useTagStore, type TagState } from '../store/tagStore';
 import { useDeepReadStore } from '../store/deepReadStore';
 import * as api from '../services/api';
 import './CollectionList.css';
-
-/** 视图模式 */
-type ViewMode = 'grid' | 'list';
 
 /** 排序选项 */
 interface SortOption {
@@ -35,9 +33,9 @@ interface SortOption {
 
 /** 排序选项列表 */
 const SORT_OPTIONS: SortOption[] = [
-    { sortBy: 'createdAt', sortOrder: 'desc', label: '最新创建' },
-    { sortBy: 'createdAt', sortOrder: 'asc', label: '最早创建' },
-    { sortBy: 'updatedAt', sortOrder: 'desc', label: '最新更新' },
+    { sortBy: 'created_at', sortOrder: 'desc', label: '最新创建' },
+    { sortBy: 'created_at', sortOrder: 'asc', label: '最早创建' },
+    { sortBy: 'updated_at', sortOrder: 'desc', label: '最新更新' },
     { sortBy: 'title', sortOrder: 'asc', label: '标题 A→Z' },
     { sortBy: 'title', sortOrder: 'desc', label: '标题 Z→A' },
 ];
@@ -52,17 +50,16 @@ export default function CollectionList() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { showToast, showConfirm } = useToast();
 
-    const [collections, setCollections] = useState<Collection[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState<ViewMode>('grid');
-    const [pagination, setPagination] = useState({
-        page: 1,
-        pageSize: 20,
-        total: 0,
-        totalPages: 0,
-    });
-    const [keyword, setKeyword] = useState('');
-    const searchBarRef = useRef<SearchBarRef>(null);
+    // 从 collectionStore 读取状态，取代本地 useState
+    const collections = useCollectionStore((s) => s.collections);
+    const total = useCollectionStore((s) => s.total);
+    const loading = useCollectionStore((s) => s.loading);
+    const page = useCollectionStore((s) => s.page);
+    const pageSize = useCollectionStore((s) => s.pageSize);
+    const filters = useCollectionStore((s) => s.filters);
+    const viewMode = useCollectionStore((s) => s.viewMode);
+    const { invalidate, setFilters, setPage, setViewMode, optimisticToggleFavorite } = useCollectionStore();
+    const totalPages = Math.ceil(total / pageSize);
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // 批量操作状态
@@ -76,92 +73,28 @@ export default function CollectionList() {
     const folders = useFolderStore((s: FolderState) => s.folders);
     const allTags = useTagStore((s: TagState) => s.tags);
 
-    // 从 URL 参数获取筛选条件
-    const folderId = searchParams.get('folder') || undefined;
-    const tagId = searchParams.get('tag') || undefined;
-    const isFavorite = searchParams.get('favorite') === 'true' ? true : undefined;
-    const sortByParam = searchParams.get('sortBy') || 'createdAt';
-    const sortOrderParam = (searchParams.get('sortOrder') || 'desc') as 'asc' | 'desc';
-
     /**
-     * 监听全局 focus-search 事件，响应 Ctrl/Cmd+K 快捷键
+     * 从 URL 参数同步筛选条件到 store
+     * URL 参数变化时（如从侧边栏导航）自动同步
      */
     useEffect(() => {
-        const handleFocusSearch = () => {
-            searchBarRef.current?.focus();
-        };
-
-        document.addEventListener('focus-search', handleFocusSearch);
-        return () => {
-            document.removeEventListener('focus-search', handleFocusSearch);
-        };
-    }, []);
+        const folderId = searchParams.get('folder') || null;
+        const tagId = searchParams.get('tag') || null;
+        const isFavorite = searchParams.get('favorite') === 'true' ? true : null;
+        const sortBy = searchParams.get('sortBy') || 'created_at';
+        const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
+        setFilters({ folderId, tagId, isFavorite, sortBy, sortOrder });
+    }, [searchParams, setFilters]);
 
     /**
-     * 手动重新加载收藏列表（供事件处理函数调用，不依赖 useEffect）
+     * 首次加载收藏数据后初始化精读队列
      */
-    async function reloadCollections() {
-        try {
-            setLoading(true);
-            const params: GetCollectionsParams = {
-                page: pagination.page,
-                pageSize: pagination.pageSize,
-                folderId,
-                tagId,
-                isFavorite,
-                keyword: keyword || undefined,
-                sortBy: sortByParam,
-                sortOrder: sortOrderParam,
-            };
-            const result = await api.getCollections(params);
-            setCollections(result.items);
-            setPagination(result.pagination);
-            if (result.items.length === 0 && pagination.page > 1) {
-                setPagination(prev => ({ ...prev, page: 1 }));
-            }
-        } catch (err) {
-            console.error('加载收藏列表失败:', err);
-        } finally {
-            setLoading(false);
+    useEffect(() => {
+        const deepReadState = useDeepReadStore.getState();
+        if (!deepReadState.initialized && collections.length > 0) {
+            deepReadState.initQueue(collections);
         }
-    }
-
-    /**
-     * 筛选条件、页码或搜索关键词变化时自动加载列表
-     */
-    useEffect(() => {
-        let cancelled = false;
-        (async () => {
-            try {
-                setLoading(true);
-                const params: GetCollectionsParams = {
-                    page: pagination.page,
-                    pageSize: pagination.pageSize,
-                    folderId,
-                    tagId,
-                    isFavorite,
-                    keyword: keyword || undefined,
-                    sortBy: sortByParam,
-                    sortOrder: sortOrderParam,
-                };
-                const result = await api.getCollections(params);
-                if (!cancelled) {
-                    setCollections(result.items);
-                    setPagination(result.pagination);
-                    // 首次加载成功后初始化精读队列
-                    const deepReadState = useDeepReadStore.getState();
-                    if (!deepReadState.initialized) {
-                        deepReadState.initQueue(result.items);
-                    }
-                }
-            } catch (err) {
-                if (!cancelled) console.error('加载收藏列表失败:', err);
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        })();
-        return () => { cancelled = true; };
-    }, [folderId, tagId, isFavorite, sortByParam, sortOrderParam, pagination.page, pagination.pageSize, keyword]);
+    }, [collections]);
 
     /**
      * 进入批量模式时预加载 folders/tags 数据
@@ -192,7 +125,7 @@ export default function CollectionList() {
     };
 
     /**
-     * 搜索处理（300ms 防抖），防抖结束后更新 keyword，由 useEffect 自动触发加载
+     * 搜索处理（300ms 防抖），防抖结束后更新 store 筛选条件
      */
     const handleSearch = (value: string) => {
         if (searchTimerRef.current) {
@@ -200,8 +133,7 @@ export default function CollectionList() {
         }
 
         searchTimerRef.current = setTimeout(() => {
-            setKeyword(value);
-            setPagination(prev => ({ ...prev, page: 1 }));
+            setFilters({ keyword: value });
         }, 300);
     };
 
@@ -225,26 +157,21 @@ export default function CollectionList() {
     };
 
     /**
-     * 切换星标
+     * 切换星标（乐观更新，store 自动处理同步与回滚）
      */
-    const handleToggleFavorite = async (id: string) => {
-        try {
-            await api.toggleFavorite(id);
-            await reloadCollections();
-        } catch (err) {
-            console.error('切换星标失败:', err);
-        }
+    const handleToggleFavorite = (id: string) => {
+        optimisticToggleFavorite(id);
     };
 
     /**
      * 切换页码
      */
     const handlePageChange = (newPage: number) => {
-        setPagination((prev) => ({ ...prev, page: newPage }));
+        setPage(newPage);
     };
 
     /**
-     * 排序变化处理，重置到第 1 页
+     * 排序变化处理，更新 URL 参数触发 store 同步
      * @param option - 选中的排序选项
      */
     const handleSortChange = (option: SortOption) => {
@@ -252,7 +179,6 @@ export default function CollectionList() {
         newParams.set('sortBy', option.sortBy);
         newParams.set('sortOrder', option.sortOrder);
         setSearchParams(newParams);
-        setPagination(prev => ({ ...prev, page: 1 }));
     };
 
     // ==================== 批量操作相关 ====================
@@ -337,7 +263,7 @@ export default function CollectionList() {
             await useFolderStore.getState().invalidate();
             await useTagStore.getState().invalidate();
             exitBatchMode();
-            await reloadCollections();
+            await invalidate();
         } catch (err) {
             console.error('批量删除失败:', err);
             showToast('批量删除失败，请重试', 'error');
@@ -360,7 +286,7 @@ export default function CollectionList() {
             await api.batchMoveCollections(Array.from(selectedIds), targetFolderId);
             await useFolderStore.getState().invalidate();
             exitBatchMode();
-            await reloadCollections();
+            await invalidate();
         } catch (err) {
             console.error('批量移动失败:', err);
             showToast('批量移动失败，请重试', 'error');
@@ -382,7 +308,7 @@ export default function CollectionList() {
         try {
             await api.batchAddTags(Array.from(selectedIds), tagIds, 'add');
             exitBatchMode();
-            await reloadCollections();
+            await invalidate();
         } catch (err) {
             console.error('批量添加标签失败:', err);
             showToast('批量添加标签失败，请重试', 'error');
@@ -402,9 +328,9 @@ export default function CollectionList() {
     // 当前排序选项
     const currentSortOption = useMemo(
         () => SORT_OPTIONS.find(
-            (o) => o.sortBy === sortByParam && o.sortOrder === sortOrderParam,
+            (o) => o.sortBy === filters.sortBy && o.sortOrder === filters.sortOrder,
         ) || SORT_OPTIONS[0],
-        [sortByParam, sortOrderParam],
+        [filters.sortBy, filters.sortOrder],
     );
 
     return (
@@ -414,12 +340,12 @@ export default function CollectionList() {
                 <div className="collection-list-toolbar-left">
                     <h2 className="collection-list-title">{getFilterTitle()}</h2>
                     <span className="collection-list-count">
-                        共 {pagination.total} 项
+                        共 {total} 项
                     </span>
                 </div>
 
                 <div className="collection-list-toolbar-right">
-                    <SearchBar ref={searchBarRef} onSearch={handleSearch} placeholder="搜索收藏..." />
+                    <SearchBar onSearch={handleSearch} placeholder="搜索收藏..." />
 
                     {/* 排序选择器 */}
                     <div className="collection-list-sort">
@@ -550,22 +476,22 @@ export default function CollectionList() {
                     </div>
 
                     {/* 分页 */}
-                    {pagination.totalPages > 1 && (
+                    {totalPages > 1 && (
                         <div className="collection-list-pagination">
                             <button
                                 className="pagination-btn"
-                                disabled={pagination.page <= 1}
-                                onClick={() => handlePageChange(pagination.page - 1)}
+                                disabled={page <= 1}
+                                onClick={() => handlePageChange(page - 1)}
                             >
                                 上一页
                             </button>
                             <span className="pagination-info">
-                                {pagination.page} / {pagination.totalPages}
+                                {page} / {totalPages}
                             </span>
                             <button
                                 className="pagination-btn"
-                                disabled={pagination.page >= pagination.totalPages}
-                                onClick={() => handlePageChange(pagination.page + 1)}
+                                disabled={page >= totalPages}
+                                onClick={() => handlePageChange(page + 1)}
                             >
                                 下一页
                             </button>
