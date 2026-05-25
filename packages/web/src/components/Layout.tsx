@@ -42,7 +42,7 @@ export default function Layout({ sidebar, content, onQuickSave }: LayoutProps) {
      * 通过自定义事件通知 CollectionList 中的 SearchBar
      */
     const handleFocusSearch = useCallback(() => {
-        document.dispatchEvent(new CustomEvent('focus-search'));
+        document.dispatchEvent(new CustomEvent('open-search-overlay'));
     }, []);
 
     /**

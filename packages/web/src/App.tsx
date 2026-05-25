@@ -13,8 +13,10 @@ import Layout from './components/Layout';
 import QuickSaveModal from './components/QuickSaveModal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import DeepReadProgress from './components/DeepReadProgress';
+import SearchOverlay from './components/SearchOverlay';
 import { ToastProvider } from './contexts/ToastContext';
 import { useFolderStore } from './store/folderStore';
+import { useCollectionStore } from './store/collectionStore';
 import Sidebar from './pages/Sidebar';
 import CollectionList from './pages/CollectionList';
 import CollectionDetail from './pages/CollectionDetail';
@@ -32,6 +34,7 @@ import * as api from './services/api';
  */
 export default function App() {
     const [quickSaveVisible, setQuickSaveVisible] = useState(false);
+    const [searchOverlayVisible, setSearchOverlayVisible] = useState(false);
     const [detectedUrl, setDetectedUrl] = useState<ClipboardDetectResult | null>(null);
 
     /**
@@ -76,6 +79,29 @@ export default function App() {
 
         return () => clearTimeout(timer);
     }, [detectClipboard]);
+
+    /**
+     * 监听 open-search-overlay 事件
+     * 由 Cmd+K 快捷键或搜索按钮触发
+     */
+    useEffect(() => {
+        const handler = () => setSearchOverlayVisible(true);
+        document.addEventListener('open-search-overlay', handler);
+        return () => document.removeEventListener('open-search-overlay', handler);
+    }, []);
+
+    /**
+     * 监听 deep-read-complete 事件
+     * 精读完成后更新 collection content
+     */
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const { collectionId, content } = (e as CustomEvent).detail;
+            useCollectionStore.getState().updateContent(collectionId, content);
+        };
+        document.addEventListener('deep-read-complete', handler);
+        return () => document.removeEventListener('deep-read-complete', handler);
+    }, []);
 
     /**
      * 处理拖拽结束事件
@@ -168,6 +194,10 @@ export default function App() {
 
                 <PWAInstallPrompt />
                 <DeepReadProgress />
+                <SearchOverlay
+                    visible={searchOverlayVisible}
+                    onClose={() => setSearchOverlayVisible(false)}
+                />
             </ToastProvider>
         </BrowserRouter>
     );
