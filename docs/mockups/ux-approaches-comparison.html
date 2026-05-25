@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Favorites UX 方案对比 - Mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=DM+Serif+Display&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #b45309;
+            --primary-light: #d97706;
+            --primary-pale: #fef3c7;
+            --bg-cream: #f6f2ec;
+            --bg-warm: #fefcf8;
+            --text-dark: #2c2416;
+            --text-mid: #5c4a3a;
+            --text-light: #8b7b6b;
+            --border: #e8dcc8;
+            --card-bg: #fefcf8;
+            --sidebar-bg: #f0e8d8;
+            --shadow: 0 2px 8px rgba(44,36,16,0.08);
+            --radius: 12px;
+            --transition: 0.2s ease;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-cream);
+            color: var(--text-dark);
+            line-height: 1.6;
+        }
+
+        .page-header {
+            background: var(--sidebar-bg);
+            border-bottom: 2px solid var(--border);
+            padding: 24px 32px;
+            text-align: center;
+        }
+
+        .page-header h1 {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 28px;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+
+        .page-header p {
+            color: var(--text-light);
+            font-size: 14px;
+        }
+
+        .approaches-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            padding: 32px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .approach-card {
+            background: var(--card-bg);
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            transition: border-color var(--transition);
+        }
+
+        .approach-card:hover {
+            border-color: var(--primary-light);
+        }
+
+        .approach-card.recommended {
+            border-color: var(--primary);
+            position: relative;
+        }
+
+        .approach-card.recommended::before {
+            content: '推荐';
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: var(--primary);
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            z-index: 1;
+        }
+
+        .approach-header {
+            padding: 20px;
+            background: var(--sidebar-bg);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .approach-header h2 {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 18px;
+            color: var(--text-dark);
+            margin-bottom: 4px;
+        }
+
+        .approach-header .subtitle {
+            font-size: 13px;
+            color: var(--text-light);
+        }
+
+        .approach-body {
+            padding: 20px;
+        }
+
+        /* Interactive demo areas */
+        .demo-area {
+            background: var(--bg-cream);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            min-height: 200px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        /* Approach A: Overlay Search Panel */
+        .overlay-search-demo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 240px;
+            background: rgba(246,242,236,0.3);
+            backdrop-filter: blur(8px);
+        }
+
+        .overlay-search-panel {
+            width: 80%;
+            max-width: 520px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(44,36,16,0.15);
+            padding: 16px;
+            animation: overlaySlideIn 0.3s ease;
+        }
+
+        @keyframes overlaySlideIn {
+            from { opacity: 0; transform: translateY(-20px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .overlay-search-input {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border: 2px solid var(--primary);
+            border-radius: 8px;
+            background: var(--bg-warm);
+        }
+
+        .overlay-search-input .kbd {
+            font-size: 11px;
+            padding: 2px 6px;
+            background: var(--border);
+            border-radius: 3px;
+            color: var(--text-light);
+        }
+
+        .overlay-search-input input {
+            flex: 1;
+            border: none;
+            background: none;
+            outline: none;
+            font-size: 14px;
+            color: var(--text-dark);
+        }
+
+        .overlay-results {
+            margin-top: 8px;
+            list-style: none;
+        }
+
+        .overlay-result-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background var(--transition);
+        }
+
+        .overlay-result-item:hover, .overlay-result-item.active {
+            background: var(--primary-pale);
+        }
+
+        .overlay-result-item .favicon {
+            width: 20px; height: 20px;
+            background: var(--border);
+            border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px;
+        }
+
+        .overlay-result-item .title {
+            font-size: 13px;
+            color: var(--text-dark);
+        }
+
+        .overlay-result-item .snippet {
+            font-size: 11px;
+            color: var(--text-light);
+            margin-left: auto;
+        }
+
+        .overlay-result-item .highlight {
+            background: #fef08a;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+
+        /* Approach B: Sidebar Search */
+        .sidebar-search-demo {
+            display: flex;
+            height: 240px;
+        }
+
+        .sidebar-demo-left {
+            width: 50%;
+            background: var(--sidebar-bg);
+            padding: 12px;
+            border-right: 1px solid var(--border);
+        }
+
+        .sidebar-search-box {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .sidebar-search-box input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 12px;
+        }
+
+        .sidebar-section-title {
+            font-size: 11px;
+            color: var(--text-light);
+            padding: 4px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 6px;
+        }
+
+        .sidebar-search-result {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .sidebar-search-result:hover {
+            background: var(--primary-pale);
+        }
+
+        .sidebar-demo-right {
+            width: 50%;
+            background: var(--bg-warm);
+            padding: 12px;
+        }
+
+        .sidebar-demo-right .note {
+            font-size: 11px;
+            color: var(--text-light);
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        /* Approach C: Minimal - Inline Enhance */
+        .inline-search-demo {
+            height: 240px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .inline-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 12px;
+        }
+
+        .inline-enhanced-search {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: white;
+            border: 2px solid var(--primary-light);
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .inline-enhanced-search input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 13px;
+        }
+
+        .inline-search-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            margin-top: 4px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            padding: 4px;
+            z-index: 2;
+        }
+
+        .inline-dropdown-item {
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .inline-dropdown-item:hover {
+            background: var(--primary-pale);
+        }
+
+        .inline-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .inline-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 11px;
+        }
+
+        .inline-card .card-title {
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+
+        .inline-card .card-match {
+            color: var(--text-light);
+            margin-top: 2px;
+        }
+
+        /* Undo Toast Demo */
+        .undo-toast-demo {
+            margin-top: 16px;
+            padding: 12px;
+            background: var(--bg-cream);
+            border-radius: 8px;
+        }
+
+        .undo-toast-demo h4 {
+            font-size: 12px;
+            color: var(--text-mid);
+            margin-bottom: 8px;
+        }
+
+        .toast-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .undo-toast {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #2c2416;
+            color: white;
+            border-radius: 8px;
+            font-size: 12px;
+            animation: toastIn 0.3s ease;
+        }
+
+        .undo-toast .undo-btn {
+            background: var(--primary-light);
+            color: white;
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            border: none;
+        }
+
+        .undo-toast .undo-btn:hover {
+            background: var(--primary);
+        }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Comparison table */
+        .comparison-section {
+            padding: 32px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .comparison-table th {
+            background: var(--sidebar-bg);
+            padding: 10px 12px;
+            text-align: left;
+            font-family: 'Noto Serif SC', serif;
+            border: 1px solid var(--border);
+        }
+
+        .comparison-table td {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+        }
+
+        .comparison-table td.best {
+            background: var(--primary-pale);
+            font-weight: 500;
+        }
+
+        .tag {
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 3px;
+        }
+
+        .tag-good { background: #d1fae5; color: #065f46; }
+        .tag-mid { background: #fef3c7; color: #92400e; }
+        .tag-bad { background: #fee2e2; color: #991b1b; }
+
+        /* Footer */
+        .page-footer {
+            text-align: center;
+            padding: 24px;
+            color: var(--text-light);
+            font-size: 12px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .approaches-grid {
+                grid-template-columns: 1fr;
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="page-header">
+    <h1>收藏夹 UX 改进方案对比</h1>
+    <p>搜索增强 + 流畅交互 — 三个方案的核心交互差异可视化</p>
+</div>
+
+<div class="approaches-grid">
+    <!-- Approach A -->
+    <div class="approach-card recommended">
+        <div class="approach-header">
+            <h2>方案 A：Overlay Cmd+K</h2>
+            <div class="subtitle">全局搜索面板 + 状态管理重构</div>
+        </div>
+        <div class="approach-body">
+            <div class="demo-area">
+                <div class="overlay-search-demo">
+                    <div class="overlay-search-panel">
+                        <div class="overlay-search-input">
+                            <span class="kbd">⌘K</span>
+                            <input type="text" value="深度学习" placeholder="搜索收藏...">
+                            <span style="color:var(--text-light); font-size:11px;">ESC 关闭</span>
+                        </div>
+                        <ul class="overlay-results">
+                            <li class="overlay-result-item active">
+                                <div class="favicon">🔗</div>
+                                <span class="title">深度学习入门指南</span>
+                                <span class="snippet">...<span class="highlight">深度学习</span>是机器学习的子领域...</span>
+                            </li>
+                            <li class="overlay-result-item">
+                                <div class="favicon">🔗</div>
+                                <span class="title">Transformer <span class="highlight">深度</span>解析</span>
+                                <span class="snippet">...<span class="highlight">学习</span>注意力机制的核心...</span>
+                            </li>
+                            <li class="overlay-result-item">
+                                <div class="favicon">📝</div>
+                                <span class="title"><span class="highlight">深度</span>阅读笔记汇总</span>
+                                <span class="snippet">笔记</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div style="font-size: 12px; color: var(--text-mid); line-height: 1.8;">
+                <strong>核心改动：</strong>
+                <ul style="margin-top: 4px; padding-left: 16px;">
+                    <li>Cmd+K / Ctrl+K 呼起全屏搜索面板</li>
+                    <li>专用搜索 API + matchSnippet 高亮</li>
+                    <li>Collection 加入 Zustand store（乐观更新）</li>
+                    <li>Undo Toast（删除/移动后可撤销）</li>
+                    <li>精读完成 → store 事件 → 卡片自动刷新</li>
+                </ul>
+            </div>
+
+            <div class="undo-toast-demo">
+                <h4>Undo Toast 效果预览</h4>
+                <div class="toast-container">
+                    <div class="undo-toast">
+                        已删除 "深度学习入门指南"
+                        <button class="undo-btn">撤销</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approach B -->
+    <div class="approach-card">
+        <div class="approach-header">
+            <h2>方案 B：侧边栏搜索</h2>
+            <div class="subtitle">搜索内嵌侧边栏 + 渐进式状态优化</div>
+        </div>
+        <div class="approach-body">
+            <div class="demo-area">
+                <div class="sidebar-search-demo">
+                    <div class="sidebar-demo-left">
+                        <div class="sidebar-search-box">
+                            🔍 <input type="text" value="深度学习" placeholder="搜索...">
+                        </div>
+                        <div class="sidebar-section-title">搜索结果</div>
+                        <div class="sidebar-search-result">🔗 深度学习入门指南</div>
+                        <div class="sidebar-search-result">🔗 Transformer 深度解析</div>
+                        <div class="sidebar-search-result">📝 深度阅读笔记</div>
+                        <div class="sidebar-section-title">全部收藏</div>
+                        <div class="sidebar-search-result" style="color:var(--text-light)">📌 所有收藏 (3)</div>
+                    </div>
+                    <div class="sidebar-demo-right">
+                        <div class="note">
+                            搜索结果直接在侧边栏<br>
+                            点击后主区域切换为<br>
+                            精确匹配视图<br><br>
+                            <em>优点：不打断当前浏览流程</em><br>
+                            <em style="color: #991b1b">缺点：侧边栏280px宽度限制展示</em>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="font-size: 12px; color: var(--text-mid); line-height: 1.8;">
+                <strong>核心改动：</strong>
+                <ul style="margin-top: 4px; padding-left: 16px;">
+                    <li>侧边栏顶部加搜索框</li>
+                    <li>搜索结果替换文件夹列表</li>
+                    <li>渐进式 store 优化（仅列表页）</li>
+                    <li>删除 → 简单 Toast（无 Undo）</li>
+                    <li>精读完成 → 手动刷新提示</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approach C -->
+    <div class="approach-card">
+        <div class="approach-header">
+            <h2>方案 C：增强页内搜索</h2>
+            <div class="subtitle">最小改动：仅替换 keyword 为搜索 API</div>
+        </div>
+        <div class="approach-body">
+            <div class="demo-area">
+                <div class="inline-search-demo">
+                    <div class="inline-toolbar">
+                        <span style="font-family:'Noto Serif SC'; font-size:14px;">全部收藏</span>
+                        <div class="inline-enhanced-search">
+                            🔍 <input type="text" value="深度学习" placeholder="搜索...">
+                            <div class="inline-search-dropdown">
+                                <div class="inline-dropdown-item">🔗 深度学习入门 — ...深度学习是...</div>
+                                <div class="inline-dropdown-item">🔗 Transformer — ...学习注意力...</div>
+                                <div class="inline-dropdown-item">📝 深度阅读笔记 — 笔记</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="inline-cards">
+                        <div class="inline-card">
+                            <div class="card-title">深度学习入门指南</div>
+                            <div class="card-match">匹配: 标题 + 内容片段</div>
+                        </div>
+                        <div class="inline-card">
+                            <div class="card-title">Transformer 深度解析</div>
+                            <div class="card-match">匹配: 内容片段</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="font-size: 12px; color: var(--text-mid); line-height: 1.8;">
+                <strong>核心改动：</strong>
+                <ul style="margin-top: 4px; padding-left: 16px;">
+                    <li>页内搜索下拉建议 + snippet 高亮</li>
+                    <li>搜索 API 替换 keyword 参数</li>
+                    <li>保持当前数据获取方式（不改 store）</li>
+                    <li>操作后仍全量刷新（无优化）</li>
+                    <li>精读完成仍需手动刷新</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="comparison-section">
+    <h3 style="font-family:'Noto Serif SC'; color:var(--primary); margin-bottom:16px;">方案对比表</h3>
+    <table class="comparison-table">
+        <thead>
+            <tr>
+                <th>维度</th>
+                <th>A: Overlay Cmd+K</th>
+                <th>B: 侧边栏搜索</th>
+                <th>C: 增强页内搜索</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>搜索体验</td>
+                <td class="best"><span class="tag tag-good">VSCode/Notion 级</span><br>跨页唤起 + snippet高亮</td>
+                <td><span class="tag tag-mid">中等</span><br>侧边栏内，不打断流程但展示受限</td>
+                <td><span class="tag tag-mid">够用</span><br>下拉建议 + 高亮，但仅列表页</td>
+            </tr>
+            <tr>
+                <td>流畅交互</td>
+                <td class="best"><span class="tag tag-good">完整</span><br>乐观更新 + Undo + 精读实时</td>
+                <td><span class="tag tag-mid">部分</span><br>列表页优化，无 Undo</td>
+                <td><span class="tag tag-bad">无变化</span><br>保持当前方式</td>
+            </tr>
+            <tr>
+                <td>改动量</td>
+                <td><span class="tag tag-mid">较大</span><br>新增 store + 搜索组件 + Toast + 事件系统</td>
+                <td class="best"><span class="tag tag-good">中等</span><br>侧边栏改造 + 列表页 store</td>
+                <td><span class="tag tag-good">最小</span><br>仅替换搜索调用 + 下拉组件</td>
+            </tr>
+            <tr>
+                <td>后端改动</td>
+                <td>搜索 API 返回格式调整<br>+ 精读完成通知机制</td>
+                <td>搜索 API 返回格式调整</td>
+                <td class="best">搜索 API 返回格式调整</td>
+            </tr>
+            <tr>
+                <td>Tauri 桌面端</td>
+                <td class="best">Cmd+K 是桌面端最自然的交互</td>
+                <td>侧边栏交互对桌面端也自然</td>
+                <td>无差异</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="page-footer">
+    方案对比 Mockup — 在浏览器中查看交互细节 | Favorites UX Design
+</div>
+
+</body>
+</html>
