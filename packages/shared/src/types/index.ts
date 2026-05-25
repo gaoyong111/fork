@@ -70,9 +70,11 @@ export interface SearchResultItem {
     type: CollectionType;
     url: string | null;
     thumbnailUrl: string | null;
+    folderId: string | null;
+    isFavorite: boolean;
     createdAt: string;
     tags: Tag[];
-    matchSnippet: string | null;
+    matchSnippet: string;
 }
 
 /**
