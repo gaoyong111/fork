@@ -20,6 +20,10 @@ export interface ToastItem {
     type: ToastType;
     /** 是否正在退出 */
     exiting?: boolean;
+    /** Undo 按钮文字 */
+    undoLabel?: string;
+    /** Undo 按钮回调 */
+    undoAction?: () => void;
 }
 
 /** Toast 容器组件 props */
@@ -87,13 +91,16 @@ interface ToastItemProps {
 function ToastItemComponent({ toast, onRemove }: ToastItemProps) {
     const [exiting, setExiting] = useState(false);
 
+    /** 有 undoAction 时延长自动消失时间 */
+    const dismissDuration = toast.undoAction ? 5000 : 3000;
+
     useEffect(() => {
         const timer = setTimeout(() => {
             setExiting(true);
-        }, 3000);
+        }, dismissDuration);
 
         return () => clearTimeout(timer);
-    }, [toast.id]);
+    }, [toast.id, dismissDuration]);
 
     /**
      * 处理退出动画结束
@@ -111,13 +118,24 @@ function ToastItemComponent({ toast, onRemove }: ToastItemProps) {
         setExiting(true);
     };
 
+    /**
+     * 执行 Undo 操作后退出
+     */
+    const handleUndo = () => {
+        toast.undoAction?.();
+        setExiting(true);
+    };
+
     return (
         <div
-            className={`toast-item ${toast.type} ${exiting ? 'exiting' : ''}`}
+            className={`toast-item ${toast.type} ${exiting ? 'exiting' : ''} ${toast.undoAction ? 'with-undo' : ''}`}
             onAnimationEnd={handleAnimationEnd}
         >
             <ToastIcon type={toast.type} />
             <span className="toast-message">{toast.message}</span>
+            {toast.undoAction && (
+                <button className="toast-undo" onClick={handleUndo}>{toast.undoLabel}</button>
+            )}
             <button className="toast-close" onClick={handleClose}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="18" y1="6" x2="6" y2="18" />

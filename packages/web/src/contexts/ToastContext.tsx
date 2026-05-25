@@ -25,7 +25,7 @@ export interface ConfirmOptions {
 /** Toast 上下文类型 */
 interface ToastContextType {
     /** 显示 Toast 通知 */
-    showToast: (message: string, type?: ToastType) => void;
+    showToast: (message: string, type?: ToastType, undo?: { label: string; action: () => void }) => void;
     /** 显示确认弹窗，返回 Promise<boolean> */
     showConfirm: (options: ConfirmOptions) => Promise<boolean>;
 }
@@ -49,10 +49,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
      * 显示 Toast 通知
      * @param message - 消息内容
      * @param type - Toast 类型，默认 info
+     * @param undo - Undo 配置，包含按钮文字和回调
      */
-    const showToast = useCallback((message: string, type: ToastType = 'info') => {
+    const showToast = useCallback((message: string, type: ToastType = 'info', undo?: { label: string; action: () => void }) => {
         const id = ++nextIdRef.current;
-        const newToast: ToastItem = { id, message, type };
+        const newToast: ToastItem = { id, message, type, undoLabel: undo?.label, undoAction: undo?.action };
 
         setToasts((prev) => {
             const updated = [...prev, newToast];

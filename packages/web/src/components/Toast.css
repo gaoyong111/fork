@@ -124,3 +124,23 @@
         transform: translateX(40px);
     }
 }
+
+.toast-undo {
+    background: var(--primary-light, #d97706);
+    color: white;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    border: none;
+    margin-left: 8px;
+    transition: background 0.2s ease;
+}
+
+.toast-undo:hover {
+    background: var(--primary, #b45309);
+}
+
+.toast-item.with-undo {
+    min-width: 280px;
+}
