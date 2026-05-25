@@ -42,7 +42,7 @@ router.get('/', (req: Request<{}, {}, {}, SearchQueryParams>, res: Response) => 
 
         // 先从 FTS 获取匹配的 rowid
         const ftsSql = `
-            SELECT rowid, rank, snippet(collections_fts, 2, '<mark>', '</mark>', '...', 32) as match_snippet
+            SELECT rowid, rank, snippet(collections_fts, -1, '<mark>', '</mark>', '...', 32) as match_snippet
             FROM collections_fts
             WHERE collections_fts MATCH ?
             ORDER BY rank
@@ -154,6 +154,8 @@ router.get('/', (req: Request<{}, {}, {}, SearchQueryParams>, res: Response) => 
                 type: item.type,
                 url: item.url,
                 cover_url: item.cover_url,
+                folderId: item.folder_id,
+                isFavorite: item.is_favorite,
                 created_at: item.created_at,
                 updated_at: item.updated_at,
                 tags,
