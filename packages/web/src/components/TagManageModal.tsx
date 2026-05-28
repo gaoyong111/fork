@@ -18,7 +18,8 @@ const PRESET_COLORS = [
 interface TagManageModalProps {
     tags: Tag[];
     onClose: () => void;
-    onTagUpdated?: () => void;
+    /** 标签变更后刷新回调（支持 async） */
+    onTagUpdated?: () => void | Promise<void>;
 }
 
 /**
@@ -34,12 +35,64 @@ export default function TagManageModal({ tags, onClose, onTagUpdated }: TagManag
     const [deleting, setDeleting] = useState<string | null>(null);
     const editInputRef = useRef<HTMLInputElement>(null);
 
+    // 创建标签状态
+    const [showCreate, setShowCreate] = useState(false);
+    const [createName, setCreateName] = useState('');
+    const [createColor, setCreateColor] = useState(PRESET_COLORS[0]);
+    const [creating, setCreating] = useState(false);
+    const createInputRef = useRef<HTMLInputElement>(null);
+
     useEffect(() => {
         if (editingId && editInputRef.current) {
             editInputRef.current.focus();
             editInputRef.current.select();
         }
     }, [editingId]);
+
+    useEffect(() => {
+        if (showCreate && createInputRef.current) {
+            createInputRef.current.focus();
+        }
+    }, [showCreate]);
+
+    /**
+     * 创建标签
+     */
+    const handleCreate = useCallback(async () => {
+        const name = createName.trim();
+        if (!name) {
+            showToast('标签名称不能为空', 'warning');
+            return;
+        }
+
+        try {
+            setCreating(true);
+            await api.createTag({ name, color: createColor });
+            showToast('标签已创建', 'success');
+            await onTagUpdated?.();
+            setCreateName('');
+            setCreateColor(PRESET_COLORS[0]);
+            setShowCreate(false);
+        } catch (err) {
+            console.error('创建标签失败:', err);
+            showToast('创建标签失败', 'error');
+        } finally {
+            setCreating(false);
+        }
+    }, [createName, createColor, showToast, onTagUpdated]);
+
+    /**
+     * 创建标签输入框键盘事件
+     */
+    const handleCreateKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleCreate();
+        } else if (e.key === 'Escape') {
+            setShowCreate(false);
+            setCreateName('');
+        }
+    };
 
     /**
      * 开始编辑标签
@@ -73,7 +126,7 @@ export default function TagManageModal({ tags, onClose, onTagUpdated }: TagManag
             setSaving(true);
             await api.updateTag(editingId, { name, color: editColor });
             showToast('标签已更新', 'success');
-            onTagUpdated?.();
+            await onTagUpdated?.();
             setEditingId(null);
         } catch (err) {
             console.error('更新标签失败:', err);
@@ -111,7 +164,7 @@ export default function TagManageModal({ tags, onClose, onTagUpdated }: TagManag
             setDeleting(tag.id);
             await api.deleteTag(tag.id);
             showToast('标签已删除', 'success');
-            onTagUpdated?.();
+            await onTagUpdated?.();
         } catch (err) {
             console.error('删除标签失败:', err);
             showToast('删除标签失败', 'error');
@@ -125,16 +178,72 @@ export default function TagManageModal({ tags, onClose, onTagUpdated }: TagManag
             <div className="tag-manage-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="tag-manage-header">
                     <h3>标签管理</h3>
-                    <button className="tag-manage-close-btn" onClick={onClose} title="关闭">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                    </button>
+                    <div className="tag-manage-header-actions">
+                        <button className="tag-manage-create-btn" onClick={() => setShowCreate(true)} title="新建标签">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="12" y1="5" x2="12" y2="19" />
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                            </svg>
+                            新建
+                        </button>
+                        <button className="tag-manage-close-btn" onClick={onClose} title="关闭">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 <div className="tag-manage-body">
-                    {tags.length === 0 ? (
+                    {/* 创建标签表单 */}
+                    {showCreate && (
+                        <div className="tag-manage-create-form">
+                            <input
+                                ref={createInputRef}
+                                className="tag-manage-edit-input"
+                                value={createName}
+                                onChange={(e) => setCreateName(e.target.value)}
+                                onKeyDown={handleCreateKeyDown}
+                                disabled={creating}
+                                placeholder="输入标签名称..."
+                            />
+                            <div className="tag-manage-color-picker">
+                                {PRESET_COLORS.map((color) => (
+                                    <button
+                                        key={color}
+                                        className={`tag-manage-color-dot ${createColor === color ? 'active' : ''}`}
+                                        style={{ backgroundColor: color }}
+                                        onClick={() => setCreateColor(color)}
+                                        title={color}
+                                    />
+                                ))}
+                            </div>
+                            <button
+                                className="tag-manage-edit-confirm"
+                                onClick={handleCreate}
+                                disabled={creating}
+                                title="确认创建"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                            </button>
+                            <button
+                                className="tag-manage-edit-cancel"
+                                onClick={() => { setShowCreate(false); setCreateName(''); }}
+                                disabled={creating}
+                                title="取消"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                            </button>
+                        </div>
+                    )}
+
+                    {tags.length === 0 && !showCreate ? (
                         <div className="tag-manage-empty">暂无标签</div>
                     ) : (
                         tags.map((tag) => (

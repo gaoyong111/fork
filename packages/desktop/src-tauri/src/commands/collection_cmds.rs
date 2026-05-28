@@ -3,6 +3,54 @@ use rusqlite::params;
 use uuid::Uuid;
 use chrono::Utc;
 
+/**
+ * 读取单个收藏项（不加锁版本，供已持有锁的函数内部调用）
+ * 与 get_collection_by_id 逻辑相同，但接受 &Connection 参数避免二次加锁死锁
+ */
+fn read_collection_by_id(db: &rusqlite::Connection, id: &str) -> Result<Collection, String> {
+    let mut col = db.prepare(
+        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, created_at, updated_at \
+         FROM collections WHERE id = ? AND is_deleted = 0"
+    ).map_err(|e| e.to_string())?
+    .query_row(params![id], |row| {
+        Ok(Collection {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            url: row.get(2)?,
+            rtype: row.get(3)?,
+            content: row.get(4)?,
+            summary: row.get(5)?,
+            cover_url: row.get(6)?,
+            folder_id: row.get(7)?,
+            is_favorite: row.get::<_, i64>(8)? != 0,
+            created_at: row.get(9)?,
+            updated_at: row.get(10)?,
+            file_path: None,
+            tags: vec![],
+            folder: None,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    col.tags = db.prepare(
+        "SELECT t.id, t.name, t.color, t.created_at \
+         FROM collection_tags ct JOIN tags t ON ct.tag_id = t.id \
+         WHERE ct.collection_id = ?"
+    ).map_err(|e| e.to_string())?
+    .query_map(params![id], |row| {
+        Ok(Tag { id: row.get(0)?, name: row.get(1)?, color: row.get(2)?, collection_count: None, created_at: row.get(3)? })
+    }).map_err(|e| e.to_string())?
+    .collect::<Result<Vec<Tag>, _>>().map_err(|e| e.to_string())?;
+
+    if let Some(ref fid) = col.folder_id {
+        col.folder = db.prepare("SELECT id, name FROM folders WHERE id = ?")
+            .map_err(|e| e.to_string())?
+            .query_row(params![fid], |row| Ok(FolderBrief { id: row.get(0)?, name: row.get(1)? }))
+            .ok();
+    }
+
+    Ok(col)
+}
+
 #[tauri::command]
 pub fn get_collections(params: Option<GetCollectionsParams>) -> Result<PaginatedData<Collection>, String> {
     let db = get_db().lock().map_err(|e| e.to_string())?;
@@ -191,50 +239,7 @@ pub fn batch_load_folder_brief(db: &rusqlite::Connection, collections: &[Collect
 #[tauri::command]
 pub fn get_collection_by_id(id: String) -> Result<Collection, String> {
     let db = get_db().lock().map_err(|e| e.to_string())?;
-
-    let mut col = db.prepare(
-        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, created_at, updated_at \
-         FROM collections WHERE id = ? AND is_deleted = 0"
-    ).map_err(|e| e.to_string())?
-    .query_row(params![id], |row| {
-        Ok(Collection {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            url: row.get(2)?,
-            rtype: row.get(3)?,
-            content: row.get(4)?,
-            summary: row.get(5)?,
-            cover_url: row.get(6)?,
-            folder_id: row.get(7)?,
-            is_favorite: row.get::<_, i64>(8)? != 0,
-            created_at: row.get(9)?,
-            updated_at: row.get(10)?,
-            file_path: None,
-            tags: vec![],
-            folder: None,
-        })
-    }).map_err(|e| e.to_string())?;
-
-    // 获取标签
-    col.tags = db.prepare(
-        "SELECT t.id, t.name, t.color, t.created_at \
-         FROM collection_tags ct JOIN tags t ON ct.tag_id = t.id \
-         WHERE ct.collection_id = ?"
-    ).map_err(|e| e.to_string())?
-    .query_map(params![id], |row| {
-        Ok(Tag { id: row.get(0)?, name: row.get(1)?, color: row.get(2)?, collection_count: None, created_at: row.get(3)? })
-    }).map_err(|e| e.to_string())?
-    .collect::<Result<Vec<Tag>, _>>().map_err(|e| e.to_string())?;
-
-    // 获取文件夹信息
-    if let Some(ref fid) = col.folder_id {
-        col.folder = db.prepare("SELECT id, name FROM folders WHERE id = ?")
-            .map_err(|e| e.to_string())?
-            .query_row(params![fid], |row| Ok(FolderBrief { id: row.get(0)?, name: row.get(1)? }))
-            .ok();
-    }
-
-    Ok(col)
+    read_collection_by_id(&db, &id)
 }
 
 #[tauri::command]
@@ -264,7 +269,7 @@ pub fn create_collection(data: CreateCollectionParams) -> Result<Collection, Str
         }
     }
 
-    get_collection_by_id(id)
+    read_collection_by_id(&db, &id)
 }
 
 #[tauri::command]
@@ -339,7 +344,7 @@ pub fn update_collection(id: String, data: UpdateCollectionParams) -> Result<Col
         }
     }
 
-    get_collection_by_id(id)
+    read_collection_by_id(&db, &id)
 }
 
 #[tauri::command]

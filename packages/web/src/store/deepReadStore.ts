@@ -99,6 +99,10 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
             priority,
         };
 
+        // 清除旧的 completedContent，确保重新精读时不展示旧缓存
+        const completedContent = { ...state.completedContent };
+        delete completedContent[collectionId];
+
         let tasks: DeepReadTask[];
         if (priority === 1) {
             // 插队：排到 pending 列最前面
@@ -108,7 +112,7 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
         } else {
             tasks = [...state.tasks, newTask];
         }
-        set({ tasks });
+        set({ tasks, completedContent });
 
         // 如果队列为空或已暂停，尝试恢复处理
         if (!state.currentTask && !state.paused) {
@@ -162,12 +166,10 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
             })
             .then((updatedCollection) => {
                 if (controller.signal.aborted) return;
-                // 标记完成 + 缓存 content 供卡片即时更新
+                // 缓存 content 供卡片即时更新，从队列移除已完成任务
                 const state = get();
-                const tasks = state.tasks.map((t) =>
-                    t.collectionId === processingTask.collectionId
-                        ? { ...t, status: 'done' as const }
-                        : t
+                const tasks = state.tasks.filter(
+                    (t) => t.collectionId !== processingTask.collectionId
                 );
                 const completedContent = {
                     ...state.completedContent,

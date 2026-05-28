@@ -40,8 +40,9 @@ pub fn get_folder_tree() -> Result<Vec<Folder>, String> {
     let db = get_db().lock().map_err(|e| e.to_string())?;
 
     let mut stmt = db.prepare(
-        "SELECT f.id, f.name, f.parent_id, f.sort_order, f.created_at, f.updated_at, \
-         (SELECT COUNT(*) FROM collections c WHERE c.folder_id = f.id AND c.is_deleted = 0) as collection_count \
+        "SELECT f.id, f.name, f.parent_id, f.sort_order, \
+         (SELECT COUNT(*) FROM collections c WHERE c.folder_id = f.id AND c.is_deleted = 0) as collection_count, \
+         f.created_at, f.updated_at \
          FROM folders f ORDER BY f.sort_order ASC, f.created_at ASC"
     ).map_err(|e| e.to_string())?;
 
@@ -75,8 +76,9 @@ pub fn create_folder(data: CreateFolderParams) -> Result<Folder, String> {
     .map_err(|e| e.to_string())?;
 
     let mut stmt = db.prepare(
-        "SELECT id, name, parent_id, sort_order, created_at, updated_at, \
-         (SELECT COUNT(*) FROM collections c WHERE c.folder_id = ? AND c.is_deleted = 0) as collection_count \
+        "SELECT id, name, parent_id, sort_order, \
+         (SELECT COUNT(*) FROM collections c WHERE c.folder_id = ? AND c.is_deleted = 0) as collection_count, \
+         created_at, updated_at \
          FROM folders WHERE id = ?"
     ).map_err(|e| e.to_string())?;
 
@@ -133,8 +135,9 @@ pub fn update_folder(id: String, data: UpdateFolderParams) -> Result<Folder, Str
         .map_err(|e| e.to_string())?;
 
     let mut stmt = db.prepare(
-        "SELECT id, name, parent_id, sort_order, created_at, updated_at, \
-         (SELECT COUNT(*) FROM collections c WHERE c.folder_id = ? AND c.is_deleted = 0) as collection_count \
+        "SELECT id, name, parent_id, sort_order, \
+         (SELECT COUNT(*) FROM collections c WHERE c.folder_id = ? AND c.is_deleted = 0) as collection_count, \
+         created_at, updated_at \
          FROM folders WHERE id = ?"
     ).map_err(|e| e.to_string())?;
 

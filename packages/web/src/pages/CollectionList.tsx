@@ -11,7 +11,7 @@ import CollectionCard from '../components/CollectionCard';
 import SkeletonCard from '../components/SkeletonCard';
 import BatchActionBar from '../components/BatchActionBar';
 import FolderSelector from '../components/FolderSelector';
-import TagPicker from '../components/TagPicker';
+import TagPopover from '../components/TagPopover';
 import { useToast } from '../contexts/ToastContext';
 import { useCollectionStore } from '../store/collectionStore';
 import type { Collection } from '../types';
@@ -86,16 +86,7 @@ export default function CollectionList() {
         setFilters({ folderId, tagId, isFavorite, sortBy, sortOrder });
     }, [searchParams, setFilters]);
 
-    /**
-     * 首次加载收藏数据后初始化精读队列
-     */
-    useEffect(() => {
-        const deepReadState = useDeepReadStore.getState();
-        if (!deepReadState.initialized && collections.length > 0) {
-            deepReadState.initQueue(collections);
-        }
-    }, [collections]);
-
+    
     /**
      * 进入批量模式时预加载 folders/tags 数据
      */
@@ -161,6 +152,16 @@ export default function CollectionList() {
      */
     const handleToggleFavorite = (id: string) => {
         optimisticToggleFavorite(id);
+    };
+
+    /**
+     * 单个收藏项精读入队
+     */
+    const handleDeepRead = (id: string) => {
+        const c = collections.find((item) => item.id === id);
+        if (c && c.type === 'link' && c.url) {
+            useDeepReadStore.getState().enqueue(c.id, c.url, c.title);
+        }
     };
 
     /**
@@ -307,6 +308,7 @@ export default function CollectionList() {
 
         try {
             await api.batchAddTags(Array.from(selectedIds), tagIds, 'add');
+            await useTagStore.getState().invalidate();
             exitBatchMode();
             await invalidate();
         } catch (err) {
@@ -468,6 +470,7 @@ export default function CollectionList() {
                                 collection={collection}
                                 onClick={handleCardClick}
                                 onToggleFavorite={handleToggleFavorite}
+                                onDeepRead={handleDeepRead}
                                 selectable={batchMode}
                                 selected={selectedIds.has(collection.id)}
                                 onSelect={handleSelectItem}
@@ -514,10 +517,21 @@ export default function CollectionList() {
             {/* 标签选择面板 */}
             {showTagPicker && (
                 <div className="collection-list-dropdown-wrapper collection-list-dropdown-right">
-                    <TagPicker
+                    <TagPopover
+                        mode="trigger"
                         tags={allTags}
+                        selectedTagIds={[]}
+                        onChange={() => {}}
                         onConfirm={handleBatchAddTags}
                         onClose={() => setShowTagPicker(false)}
+                        showFooter
+                        open={showTagPicker}
+                        anchorAlign="right"
+                        onCreateTag={async (name, color) => {
+                            const newTag = await api.createTag({ name, color });
+                            await useTagStore.getState().invalidate();
+                            return newTag;
+                        }}
                     />
                 </div>
             )}

@@ -44,6 +44,18 @@
 
 .folder-tree-children {
     padding: 0;
+    position: relative;
+}
+
+.folder-tree-children::before {
+    content: '';
+    position: absolute;
+    left: 30px;
+    top: 0;
+    bottom: 8px;
+    width: 1px;
+    background-color: var(--color-border);
+    border-radius: 1px;
 }
 
 .folder-tree-node {
@@ -73,6 +85,11 @@
 
 .folder-tree-item.selected .folder-tree-icon {
     color: var(--color-primary);
+}
+
+.folder-tree-item.expanded .folder-tree-icon {
+    color: var(--color-primary);
+    opacity: 0.7;
 }
 
 .folder-tree-toggle {

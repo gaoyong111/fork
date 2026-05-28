@@ -19,6 +19,23 @@ export interface FolderState {
     fetchFolders: () => Promise<void>;
     /** 强制刷新（清缓存 + 重新 fetch） */
     invalidate: () => Promise<void>;
+    /** 乐观更新指定文件夹的 collectionCount（delta: +1 或 -1） */
+    updateCollectionCount: (folderId: string | null, delta: number) => void;
+}
+
+/**
+ * 递归更新文件夹树中指定 folderId 的 collectionCount
+ */
+function updateTreeCount(folders: Folder[], folderId: string, delta: number): Folder[] {
+    return folders.map((f) => {
+        if (f.id === folderId) {
+            return { ...f, collectionCount: (f.collectionCount ?? 0) + delta };
+        }
+        if (f.children) {
+            return { ...f, children: updateTreeCount(f.children, folderId, delta) };
+        }
+        return f;
+    });
 }
 
 export const useFolderStore = create<FolderState>((set, get) => ({
@@ -49,5 +66,11 @@ export const useFolderStore = create<FolderState>((set, get) => ({
             console.error('刷新文件夹数据失败:', err);
             set({ loading: false });
         }
+    },
+
+    updateCollectionCount: (folderId: string | null, delta: number) => {
+        if (!folderId) return;
+        const state = get();
+        set({ folders: updateTreeCount(state.folders, folderId, delta) });
     },
 }));

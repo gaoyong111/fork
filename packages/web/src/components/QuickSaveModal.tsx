@@ -11,6 +11,7 @@ import { useTagStore, type TagState } from '../store/tagStore';
 import { useDeepReadStore } from '../store/deepReadStore';
 import type { ClipboardDetectResult } from '../hooks/useClipboardDetector';
 import type { Folder } from '../types';
+import TagPopover from './TagPopover';
 import './QuickSaveModal.css';
 
 /**
@@ -212,19 +213,6 @@ export default function QuickSaveModal({
     }, [detectedUrl, selectedTagIds, onSuccess, pageTitle, pageDescription, pageCoverUrl]);
 
     /**
-     * 切换标签选择
-     * @param tagId - 标签 ID
-     */
-    const handleToggleTag = useCallback((tagId: string) => {
-        setSelectedTagIds((prev) => {
-            if (prev.includes(tagId)) {
-                return prev.filter((id) => id !== tagId);
-            }
-            return [...prev, tagId];
-        });
-    }, []);
-
-    /**
      * 获取 favicon URL
      * 使用 favicon.im 服务（国内可用）
      * @param domain - 域名
@@ -278,25 +266,20 @@ export default function QuickSaveModal({
                         </div>
 
                         {/* 标签选择 */}
-                        {tags.length > 0 && (
-                            <div className="quick-save-tags">
-                                <div className="quick-save-tags-label">标签</div>
-                                <div className="quick-save-tags-list">
-                                    {tags.map((tag) => (
-                                        <button
-                                            key={tag.id}
-                                            className={`quick-save-tag ${selectedTagIds.includes(tag.id) ? 'selected' : ''}`}
-                                            style={{
-                                                '--tag-color': tag.color,
-                                            } as React.CSSProperties}
-                                            onClick={() => handleToggleTag(tag.id)}
-                                        >
-                                            {tag.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                        <div className="quick-save-tags">
+                            <div className="quick-save-tags-label">标签</div>
+                            <TagPopover
+                                mode="always-open"
+                                tags={tags}
+                                selectedTagIds={selectedTagIds}
+                                onChange={setSelectedTagIds}
+                                onCreateTag={async (name, color) => {
+                                    const newTag = await api.createTag({ name, color });
+                                    await useTagStore.getState().invalidate();
+                                    return newTag;
+                                }}
+                            />
+                        </div>
 
                         {/* 文件夹选择（展开时显示） */}
                         {showFolderPicker && (

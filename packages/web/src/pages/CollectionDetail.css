@@ -238,30 +238,6 @@
     cursor: pointer;
 }
 
-.form-tag-select {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-}
-
-.form-tag-btn {
-    padding: 4px 12px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-full);
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
-    background-color: var(--color-bg);
-    transition: all var(--transition-fast);
-}
-
-.form-tag-btn:hover {
-    border-color: var(--color-primary-light);
-}
-
-.form-tag-btn.selected {
-    border-width: 1px;
-}
-
 /* 查看模式 - 书卷气息 */
 .detail-view {
     display: flex;

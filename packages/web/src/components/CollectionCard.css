@@ -64,12 +64,18 @@
     flex: 1;
 }
 
-/* 顶部行：来源徽章 + 星标 */
+/* 顶部行：左侧徽章组 | 右侧星标 */
 .collection-card-top-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: var(--spacing-xs);
+}
+
+.collection-card-top-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 /* 来源徽章 */
@@ -95,14 +101,44 @@
     font-weight: 500;
 }
 
+/* 精读触发按钮 */
+.collection-card-deepread-trigger {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-size: 10px;
+    font-weight: 500;
+    background-color: var(--color-primary-bg);
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary-border);
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.collection-card-deepread-trigger:hover {
+    background-color: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+
 .collection-card-deepread-badge.processing {
     background-color: var(--color-primary-bg);
     color: var(--color-primary);
 }
 
 .collection-card-deepread-badge.done {
-    background-color: var(--color-success-bg);
-    color: #5a8a5a;
+    background-color: #e8f5e1;
+    color: #3d7a3d;
+    border: 1px solid #c5e0b4;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.collection-card-deepread-badge.done:hover {
+    background-color: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
 }
 
 .deep-read-spinner-sm {

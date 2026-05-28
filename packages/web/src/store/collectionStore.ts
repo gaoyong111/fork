@@ -7,6 +7,8 @@
 import { create } from 'zustand';
 import * as api from '../services/api';
 import type { Collection, GetCollectionsParams, SearchParams, SearchResultItem } from '../types';
+import { useFolderStore } from './folderStore';
+import { useTagStore } from './tagStore';
 
 const UNDO_EXPIRE_MS = 5000;
 
@@ -52,6 +54,18 @@ export interface CollectionState {
     updateContent: (collectionId: string, content: string) => void;
 }
 
+/**
+ * 将 API 返回的数据与 pendingUndos 合并，保留乐观变更
+ * 过滤掉待删除的项，恢复已切换的 favorite 状态
+ */
+function applyOptimisticOverrides(items: Collection[], pendingUndos: UndoAction[]): Collection[] {
+    const deletedIds = new Set(
+        pendingUndos.filter((u) => u.type === 'delete').map((u) => u.targetId)
+    );
+    return items
+        .filter((c) => !deletedIds.has(c.id));
+}
+
 export const useCollectionStore = create<CollectionState>((set, get) => ({
     collections: [],
     total: 0,
@@ -87,9 +101,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         set({ loading: true });
         try {
             const data = await api.getCollections(merged);
+            const collections = applyOptimisticOverrides(data.items, get().pendingUndos);
             set({
-                collections: data.items,
-                total: data.pagination.total,
+                collections,
+                total: data.pagination.total - (data.items.length - collections.length),
                 initialized: true,
                 loading: false,
             });
@@ -112,9 +127,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
                 isFavorite: get().filters.isFavorite || undefined,
                 keyword: get().filters.keyword || undefined,
             });
+            const collections = applyOptimisticOverrides(data.items, get().pendingUndos);
             set({
-                collections: data.items,
-                total: data.pagination.total,
+                collections,
+                total: data.pagination.total - (data.items.length - collections.length),
                 initialized: true,
                 loading: false,
             });
@@ -164,6 +180,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
             pendingUndos: [...state.pendingUndos, undo],
         });
 
+        // 同步更新侧边栏文件夹计数
+        useFolderStore.getState().updateCollectionCount(target.folderId, -1);
+
         setTimeout(() => {
             const current = get();
             const stillPending = current.pendingUndos.find((u) => u.id === undoId);
@@ -171,6 +190,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
                 api.deleteCollection(id).catch((err) => {
                     console.error('延迟删除失败:', err);
                 });
+                // API 删除完成后刷新文件夹和标签计数
+                useFolderStore.getState().invalidate();
+                useTagStore.getState().invalidate();
                 set({ pendingUndos: current.pendingUndos.filter((u) => u.id !== undoId) });
             }
         }, UNDO_EXPIRE_MS);
@@ -239,6 +261,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
                     total: state.total + 1,
                     pendingUndos: state.pendingUndos.filter((u) => u.id !== undoId),
                 });
+                // 撤销删除时恢复文件夹和标签计数
+                useFolderStore.getState().updateCollectionCount(collection.folderId, 1);
+                if (collection.tags.length > 0) {
+                    useTagStore.getState().invalidate();
+                }
                 break;
             }
             default:

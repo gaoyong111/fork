@@ -10,6 +10,7 @@ import { useFolderStore, type FolderState } from '../store/folderStore';
 import { useTagStore, type TagState } from '../store/tagStore';
 import { useDeepReadStore } from '../store/deepReadStore';
 import { useCollectionStore } from '../store/collectionStore';
+import TagPopover from '../components/TagPopover';
 import type { Collection, Folder } from '../types';
 import * as api from '../services/api';
 import { formatDate } from '../utils/format';
@@ -118,6 +119,12 @@ export default function CollectionDetail() {
     const handleSave = async () => {
         if (!localCollection) return;
 
+        // 检查 tagIds 是否变化，决定是否需要刷新标签计数
+        const oldTagIds = localCollection.tags.map((t) => t.id);
+        const tagsChanged = editTagIds.length !== oldTagIds.length
+            || editTagIds.some((id) => !oldTagIds.includes(id))
+            || oldTagIds.some((id) => !editTagIds.includes(id));
+
         try {
             setSaving(true);
             const updated = await api.updateCollection(localCollection.id, {
@@ -131,6 +138,15 @@ export default function CollectionDetail() {
 
             setLocalCollection(updated);
             setEditing(false);
+
+            // 标签变化时刷新 sidebar 标签计数
+            if (tagsChanged) {
+                useTagStore.getState().invalidate();
+            }
+            // folderId 变化时刷新 sidebar 文件夹计数
+            if (editFolderId !== localCollection.folderId) {
+                useFolderStore.getState().invalidate();
+            }
         } catch (err) {
             console.error('保存失败:', err);
             showToast('保存失败，请重试', 'error');
@@ -297,17 +313,17 @@ export default function CollectionDetail() {
                         </button>
                         {localCollection.type === 'link' && localCollection.url && (
                             <>
-                                {!localCollection.content && !deepReadTask && (
+                                {!deepReadTask && (
                                     <button
                                         className="action-btn"
                                         onClick={handleExtractSummary}
-                                        title="AI 精读，插队到队列首位"
+                                        title={localCollection.content ? '重新 AI 精读，插队到队列首位' : 'AI 精读，插队到队列首位'}
                                     >
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                             <circle cx="12" cy="12" r="10" />
                                             <polyline points="12 6 12 12 16 14" />
                                         </svg>
-                                        提取精读
+                                        {localCollection.content || completedContent ? '重新精读' : '提取精读'}
                                     </button>
                                 )}
                                 {deepReadTask?.status === 'pending' && (
@@ -434,28 +450,17 @@ export default function CollectionDetail() {
 
                         <div className="form-group">
                             <label className="form-label">标签</label>
-                            <div className="form-tag-select">
-                                {tags.map((tag) => (
-                                    <button
-                                        key={tag.id}
-                                        className={`form-tag-btn ${editTagIds.includes(tag.id) ? 'selected' : ''}`}
-                                        style={{
-                                            borderColor: editTagIds.includes(tag.id) ? tag.color : undefined,
-                                            backgroundColor: editTagIds.includes(tag.id) ? tag.color + '18' : undefined,
-                                            color: editTagIds.includes(tag.id) ? tag.color : undefined,
-                                        }}
-                                        onClick={() => {
-                                            if (editTagIds.includes(tag.id)) {
-                                                setEditTagIds(editTagIds.filter((t) => t !== tag.id));
-                                            } else {
-                                                setEditTagIds([...editTagIds, tag.id]);
-                                            }
-                                        }}
-                                    >
-                                        {tag.name}
-                                    </button>
-                                ))}
-                            </div>
+                            <TagPopover
+                                mode="inline"
+                                tags={tags}
+                                selectedTagIds={editTagIds}
+                                onChange={setEditTagIds}
+                                onCreateTag={async (name, color) => {
+                                    const newTag = await api.createTag({ name, color });
+                                    await useTagStore.getState().invalidate();
+                                    return newTag;
+                                }}
+                            />
                         </div>
                     </div>
                 ) : (

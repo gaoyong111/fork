@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import TagSelector from '../components/TagSelector';
+import TagPopover from '../components/TagPopover';
 import { useFolderStore, type FolderState } from '../store/folderStore';
 import { useTagStore, type TagState } from '../store/tagStore';
 import { CollectionType } from '../types';
@@ -75,6 +75,14 @@ export default function AddCollection() {
                     folderId: folderId || undefined,
                     tagIds: tagIds.length > 0 ? tagIds : undefined,
                 });
+            }
+
+            // 刷新侧边栏计数
+            if (tagIds.length > 0) {
+                await useTagStore.getState().invalidate();
+            }
+            if (folderId) {
+                await useFolderStore.getState().invalidate();
             }
 
             navigate('/');
@@ -317,18 +325,15 @@ export default function AddCollection() {
                 {/* 标签选择 */}
                 <div className="form-group">
                     <label className="form-label">标签</label>
-                    <TagSelector
+                    <TagPopover
+                        mode="inline"
                         tags={tags}
                         selectedTagIds={tagIds}
                         onChange={setTagIds}
                         onCreateTag={async (name, color) => {
-                            try {
-                                const newTag = await api.createTag({ name, color });
-                                await useTagStore.getState().invalidate();
-                                setTagIds([...tagIds, newTag.id]);
-                            } catch (err) {
-                                console.error('创建标签失败:', err);
-                            }
+                            const newTag = await api.createTag({ name, color });
+                            await useTagStore.getState().invalidate();
+                            return newTag;
                         }}
                     />
                 </div>

@@ -19,6 +19,8 @@ interface CollectionCardProps {
     onClick?: (collection: Collection) => void;
     /** 切换星标回调 */
     onToggleFavorite?: (id: string) => void;
+    /** 精读入队回调 */
+    onDeepRead?: (id: string) => void;
     /** 是否处于可选择模式 */
     selectable?: boolean;
     /** 是否已选中 */
@@ -65,6 +67,7 @@ export default function CollectionCard({
     collection,
     onClick,
     onToggleFavorite,
+    onDeepRead,
     selectable,
     selected,
     onSelect,
@@ -103,6 +106,11 @@ export default function CollectionCard({
     const handleSelectClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         onSelect?.(collection.id);
+    };
+
+    const handleDeepReadClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onDeepRead?.(collection.id);
     };
 
     const source = getSourceBadge(collection);
@@ -156,24 +164,47 @@ export default function CollectionCard({
 
             {/* 内容区域 */}
             <div className="collection-card-body">
-                {/* 顶部元信息行：来源徽章 + 精读状态 + 星标 */}
+                {/* 顶部元信息行：来源 + 精读状态 (左) | 星标 (右) */}
                 <div className="collection-card-top-row">
-                    <span className="collection-card-source">
-                        <span className="collection-card-source-icon">{source.icon}</span>
-                        {source.label}
-                    </span>
-                    {/* 精读状态徽章 */}
-                    {isDeepReading && (
-                        <span className="collection-card-deepread-badge processing" title="精读中">
-                            <span className="deep-read-spinner-sm" />
-                            精读中
+                    <div className="collection-card-top-left">
+                        <span className="collection-card-source">
+                            <span className="collection-card-source-icon">{source.icon}</span>
+                            {source.label}
                         </span>
-                    )}
-                    {hasDeepRead && !isDeepReading && (
-                        <span className="collection-card-deepread-badge done" title="已精读">
-                            已精读
-                        </span>
-                    )}
+                        {!hasDeepRead && !isDeepReading && collection.type === 'link' && collection.url && (
+                            <button
+                                className="collection-card-deepread-trigger"
+                                onClick={handleDeepReadClick}
+                                title="开始精读"
+                            >
+                                精读
+                            </button>
+                        )}
+                        {deepReadTask?.status === 'error' && (
+                            <button
+                                className="collection-card-deepread-trigger"
+                                onClick={handleDeepReadClick}
+                                title="重试精读"
+                            >
+                                重试
+                            </button>
+                        )}
+                        {isDeepReading && (
+                            <span className="collection-card-deepread-badge processing" title="精读中">
+                                <span className="deep-read-spinner-sm" />
+                                精读中
+                            </span>
+                        )}
+                        {hasDeepRead && !isDeepReading && (
+                            <button
+                                className="collection-card-deepread-badge done"
+                                onClick={handleDeepReadClick}
+                                title="已精读，点击重新精读"
+                            >
+                                ✓ 已精读
+                            </button>
+                        )}
+                    </div>
                     <button
                         className={`collection-card-favorite ${collection.isFavorite ? 'active' : ''}`}
                         onClick={handleFavoriteClick}

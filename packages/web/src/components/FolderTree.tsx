@@ -12,6 +12,20 @@ import * as api from '../services/api';
 import type { Folder } from '../types';
 import './FolderTree.css';
 
+const ITEM_BASE_PADDING = 24;
+const DEPTH_INDENT = 16;
+
+/**
+ * 递归计算文件夹及其子级的收藏总数
+ */
+function totalCollectionCount(folder: Folder): number {
+    const direct = folder.collectionCount ?? 0;
+    const childTotal = folder.children?.reduce(
+        (sum, c) => sum + totalCollectionCount(c), 0
+    ) ?? 0;
+    return direct + childTotal;
+}
+
 interface FolderTreeProps {
     /** 文件夹树数据 */
     folders: Folder[];
@@ -218,8 +232,8 @@ function FolderTreeNode({
         <li className="folder-tree-node">
             <div
                 ref={setSortableRef}
-                className={`folder-tree-item ${isSelected ? 'selected' : ''}`}
-                style={sortableStyle}
+                className={`folder-tree-item ${isSelected ? 'selected' : ''} ${hasChildren && expanded ? 'expanded' : ''}`}
+                style={{ ...sortableStyle, paddingLeft: ITEM_BASE_PADDING + depth * DEPTH_INDENT }}
                 onClick={handleClick}
             >
                 {/* 拖拽排序手柄 */}
@@ -272,9 +286,9 @@ function FolderTreeNode({
                     width="16"
                     height="16"
                     viewBox="0 0 24 24"
-                    fill="none"
+                    fill={hasChildren && expanded ? 'currentColor' : 'none'}
                     stroke="currentColor"
-                    strokeWidth="2"
+                    strokeWidth={hasChildren && expanded ? 1 : 2}
                 >
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
@@ -296,8 +310,8 @@ function FolderTreeNode({
                     </span>
                 )}
 
-                {folder.collectionCount !== undefined && !isRenaming && (
-                    <span className="folder-tree-count">{folder.collectionCount}</span>
+                {totalCollectionCount(folder) > 0 && !isRenaming && (
+                    <span className="folder-tree-count">{totalCollectionCount(folder)}</span>
                 )}
 
                 {/* 操作按钮区域 */}

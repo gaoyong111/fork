@@ -1,4 +1,5 @@
 use crate::db::get_db;
+use rusqlite::Connection;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -8,9 +9,8 @@ pub struct AiConfig {
     pub model: String,
 }
 
-/** 从 DB 读取 AI 配置（同步，读取后立即释放 lock） */
-fn load_ai_config_sync() -> AiConfig {
-    let db = get_db().lock().unwrap();
+/** 从 DB 读取 AI 配置（接受 &Connection，避免在持锁上下文中二次加锁） */
+fn read_ai_config(db: &Connection) -> AiConfig {
     let api_url = db.prepare("SELECT value FROM settings WHERE key = 'ai_api_url'")
         .ok()
         .and_then(|mut stmt| stmt.query_row([], |row| row.get::<_, String>(0)).ok())
@@ -31,7 +31,8 @@ fn load_ai_config_sync() -> AiConfig {
 
 #[tauri::command]
 pub fn get_ai_config() -> AiConfig {
-    load_ai_config_sync()
+    let db = get_db().lock().unwrap();
+    read_ai_config(&db)
 }
 
 #[tauri::command]
@@ -51,8 +52,10 @@ pub fn set_ai_config(config: AiConfig) -> AiConfig {
 /** 测试 AI API 连接，发送一个简单请求验证配置是否正确 */
 #[tauri::command]
 pub async fn test_ai_connection(config: Option<AiConfig>) -> Result<serde_json::Value, String> {
-    // 使用传入的 config 或从 DB 读取配置
-    let ai_config = config.unwrap_or_else(|| load_ai_config_sync());
+    let ai_config = config.unwrap_or_else(|| {
+        let db = get_db().lock().unwrap();
+        read_ai_config(&db)
+    });
 
     if ai_config.api_key.is_empty() {
         return Err("API Key 未填写".to_string());
