@@ -22,6 +22,8 @@ pub fn run() {
             collection_cmds::batch_move_collections,
             collection_cmds::batch_add_tags,
             collection_cmds::toggle_favorite,
+            collection_cmds::toggle_archive,
+            collection_cmds::increment_read_count,
             collection_cmds::move_collection,
             // 文件夹
             folder_cmds::get_folder_tree,

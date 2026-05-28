@@ -9,7 +9,9 @@ CREATE TABLE IF NOT EXISTS collections (
     cover_url TEXT,
     folder_id TEXT,
     is_favorite INTEGER NOT NULL DEFAULT 0,
+    is_archived INTEGER NOT NULL DEFAULT 0,
     is_deleted INTEGER NOT NULL DEFAULT 0,
+    read_count INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
@@ -57,6 +59,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS collections_fts USING fts5(
 CREATE INDEX IF NOT EXISTS idx_collections_folder_id ON collections(folder_id);
 CREATE INDEX IF NOT EXISTS idx_collections_type ON collections(type);
 CREATE INDEX IF NOT EXISTS idx_collections_is_deleted ON collections(is_deleted);
+CREATE INDEX IF NOT EXISTS idx_collections_is_archived ON collections(is_archived);
 CREATE INDEX IF NOT EXISTS idx_collections_created_at ON collections(created_at);
 CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
 CREATE INDEX IF NOT EXISTS idx_collection_tags_tag_id ON collection_tags(tag_id);

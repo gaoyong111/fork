@@ -19,6 +19,8 @@ export const batchDeleteCollections = adapter.batchDeleteCollections.bind(adapte
 export const batchMoveCollections = adapter.batchMoveCollections.bind(adapter);
 export const batchAddTags = adapter.batchAddTags.bind(adapter);
 export const toggleFavorite = adapter.toggleFavorite.bind(adapter);
+export const toggleArchive = adapter.toggleArchive.bind(adapter);
+export const incrementReadCount = adapter.incrementReadCount.bind(adapter);
 export const moveCollection = adapter.moveCollection.bind(adapter);
 
 // ==================== 文件夹 ====================

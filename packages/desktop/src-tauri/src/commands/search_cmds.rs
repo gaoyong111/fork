@@ -83,7 +83,7 @@ pub fn search_collections(params: SearchParams) -> Result<PaginatedData<SearchRe
 
     // Step 4: 查询列表
     let list_sql = format!(
-        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, created_at, updated_at \
+        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, is_archived, read_count, created_at, updated_at \
          FROM collections WHERE rowid IN ({}) AND {} ORDER BY created_at DESC LIMIT ? OFFSET ?",
         rowid_placeholders, where_clause
     );
@@ -106,8 +106,10 @@ pub fn search_collections(params: SearchParams) -> Result<PaginatedData<SearchRe
                 cover_url: row.get(6)?,
                 folder_id: row.get(7)?,
                 is_favorite: row.get::<_, i64>(8)? != 0,
-                created_at: row.get(9)?,
-                updated_at: row.get(10)?,
+                is_archived: row.get::<_, i64>(9)? != 0,
+                read_count: row.get::<_, i64>(10)?,
+                created_at: row.get(11)?,
+                updated_at: row.get(12)?,
                 file_path: None,
                 tags: vec![],
                 folder: None,

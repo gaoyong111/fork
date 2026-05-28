@@ -58,7 +58,7 @@ export default function CollectionList() {
     const pageSize = useCollectionStore((s) => s.pageSize);
     const filters = useCollectionStore((s) => s.filters);
     const viewMode = useCollectionStore((s) => s.viewMode);
-    const { invalidate, setFilters, setPage, setViewMode, optimisticToggleFavorite } = useCollectionStore();
+    const { invalidate, setFilters, setPage, setViewMode, optimisticToggleFavorite, optimisticToggleArchive } = useCollectionStore();
     const totalPages = Math.ceil(total / pageSize);
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -155,13 +155,10 @@ export default function CollectionList() {
     };
 
     /**
-     * 单个收藏项精读入队
+     * 切换归档（乐观更新）
      */
-    const handleDeepRead = (id: string) => {
-        const c = collections.find((item) => item.id === id);
-        if (c && c.type === 'link' && c.url) {
-            useDeepReadStore.getState().enqueue(c.id, c.url, c.title);
-        }
+    const handleToggleArchive = (id: string) => {
+        optimisticToggleArchive(id);
     };
 
     /**
@@ -470,7 +467,7 @@ export default function CollectionList() {
                                 collection={collection}
                                 onClick={handleCardClick}
                                 onToggleFavorite={handleToggleFavorite}
-                                onDeepRead={handleDeepRead}
+                                onToggleArchive={handleToggleArchive}
                                 selectable={batchMode}
                                 selected={selectedIds.has(collection.id)}
                                 onSelect={handleSelectItem}

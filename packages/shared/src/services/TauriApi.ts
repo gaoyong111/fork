@@ -120,6 +120,14 @@ export class TauriApi extends FavoritesApi {
         return this.call<{ id: string; folderId: string }>('move_collection', { id, folderId });
     }
 
+    async toggleArchive(id: string): Promise<{ id: string; isArchived: boolean }> {
+        return this.call<{ id: string; isArchived: boolean }>('toggle_archive', { id });
+    }
+
+    async incrementReadCount(id: string): Promise<{ id: string; readCount: number }> {
+        return this.call<{ id: string; readCount: number }>('increment_read_count', { id });
+    }
+
     // ==================== 文件夹 ====================
 
     async getFolderTree(): Promise<Folder[]> {

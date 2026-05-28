@@ -13,6 +13,7 @@ interface CollectionQueryParams {
     type?: string;
     keyword?: string;
     is_favorite?: string;
+    is_archived?: string;
     page?: string;
     limit?: string;
     sort_by?: string;
@@ -74,6 +75,7 @@ router.get('/', (req: Request<{}, {}, {}, CollectionQueryParams>, res: Response)
             type,
             keyword,
             is_favorite,
+            is_archived,
             page = '1',
             limit = '20',
             sort_by,
@@ -100,6 +102,12 @@ router.get('/', (req: Request<{}, {}, {}, CollectionQueryParams>, res: Response)
 
         if (is_favorite === '1' || is_favorite === 'true') {
             conditions.push('c.is_favorite = 1');
+        }
+
+        if (is_archived === '0' || is_archived === 'false') {
+            conditions.push('c.is_archived = 0');
+        } else if (is_archived === '1' || is_archived === 'true') {
+            conditions.push('c.is_archived = 1');
         }
 
         if (keyword) {
@@ -129,6 +137,9 @@ router.get('/', (req: Request<{}, {}, {}, CollectionQueryParams>, res: Response)
         const sortBy = sortMap[sort_by || ''] || 'c.created_at';
         const sortOrder = sort_order?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
+        // 归档项始终排最后，同组内按用户选择的排序
+        const archiveOrder = 'c.is_archived ASC';
+
         // 查询总数
         const countSql = `SELECT COUNT(DISTINCT c.id) as total FROM collections c ${joinClause} WHERE ${whereClause}`;
         const { total } = db.prepare(countSql).get(...params) as { total: number };
@@ -138,7 +149,7 @@ router.get('/', (req: Request<{}, {}, {}, CollectionQueryParams>, res: Response)
             SELECT c.* FROM collections c ${joinClause}
             WHERE ${whereClause}
             GROUP BY c.id
-            ORDER BY ${sortBy} ${sortOrder}
+            ORDER BY ${archiveOrder}, ${sortBy} ${sortOrder}
             LIMIT ? OFFSET ?
         `;
         const items = db.prepare(listSql).all(...params, limitNum, offset) as Record<string, unknown>[];
@@ -249,9 +260,9 @@ router.post('/', (req: Request<{}, {}, CreateCollectionBody>, res: Response) => 
 
         // 插入收藏项
         db.prepare(`
-            INSERT INTO collections (id, title, url, type, content, summary, cover_url, folder_id, is_favorite, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(id, title.trim(), url || null, type, content || null, resolvedSummary || null, resolvedCoverUrl || null, resolvedFolderId || null, resolvedIsFavorite ? 1 : 0, now, now);
+            INSERT INTO collections (id, title, url, type, content, summary, cover_url, folder_id, is_favorite, is_archived, read_count, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(id, title.trim(), url || null, type, content || null, resolvedSummary || null, resolvedCoverUrl || null, resolvedFolderId || null, resolvedIsFavorite ? 1 : 0, 0, 0, now, now);
 
         // 关联标签
         const insertTag = db.prepare(
@@ -832,6 +843,98 @@ router.post('/:id/move', (req: Request<{ id: string }, {}, MoveCollectionBody>, 
         });
     } catch (error) {
         console.error('[收藏项] 移动失败:', error);
+        res.status(500).json({
+            code: 50001,
+            message: '服务器内部错误',
+        });
+    }
+});
+
+/**
+ * 切换收藏项归档状态
+ * POST /api/collections/:id/archive
+ */
+router.post('/:id/archive', (req: Request<{ id: string }>, res: Response) => {
+    try {
+        const db = getDb();
+        const { id } = req.params;
+        const now = new Date().toISOString();
+
+        const existing = db.prepare(
+            'SELECT * FROM collections WHERE id = ? AND is_deleted = 0'
+        ).get(id) as Record<string, unknown> | undefined;
+
+        if (!existing) {
+            res.status(404).json({
+                code: 40401,
+                message: '收藏项不存在',
+            });
+            return;
+        }
+
+        const newArchived = existing.is_archived ? 0 : 1;
+
+        db.prepare(
+            'UPDATE collections SET is_archived = ?, updated_at = ? WHERE id = ?'
+        ).run(newArchived, now, id);
+
+        const item = db.prepare('SELECT * FROM collections WHERE id = ?').get(id) as Record<string, unknown>;
+        const tags = db.prepare(`
+            SELECT t.id, t.name, t.color
+            FROM tags t
+            INNER JOIN collection_tags ct ON t.id = ct.tag_id
+            WHERE ct.collection_id = ?
+        `).all(id) as Record<string, unknown>[];
+
+        res.json({
+            code: 0,
+            message: 'success',
+            data: { ...item, tags },
+        });
+    } catch (error) {
+        console.error('[收藏项] 切换归档失败:', error);
+        res.status(500).json({
+            code: 50001,
+            message: '服务器内部错误',
+        });
+    }
+});
+
+/**
+ * 累加阅读次数
+ * POST /api/collections/:id/read
+ */
+router.post('/:id/read', (req: Request<{ id: string }>, res: Response) => {
+    try {
+        const db = getDb();
+        const { id } = req.params;
+        const now = new Date().toISOString();
+
+        const existing = db.prepare(
+            'SELECT * FROM collections WHERE id = ? AND is_deleted = 0'
+        ).get(id) as Record<string, unknown> | undefined;
+
+        if (!existing) {
+            res.status(404).json({
+                code: 40401,
+                message: '收藏项不存在',
+            });
+            return;
+        }
+
+        db.prepare(
+            'UPDATE collections SET read_count = read_count + 1, updated_at = ? WHERE id = ?'
+        ).run(now, id);
+
+        const item = db.prepare('SELECT * FROM collections WHERE id = ?').get(id) as Record<string, unknown>;
+
+        res.json({
+            code: 0,
+            message: 'success',
+            data: { id: item.id, read_count: item.read_count },
+        });
+    } catch (error) {
+        console.error('[收藏项] 累加阅读次数失败:', error);
         res.status(500).json({
             code: 50001,
             message: '服务器内部错误',

@@ -9,7 +9,7 @@ use chrono::Utc;
  */
 fn read_collection_by_id(db: &rusqlite::Connection, id: &str) -> Result<Collection, String> {
     let mut col = db.prepare(
-        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, created_at, updated_at \
+        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, is_archived, read_count, created_at, updated_at \
          FROM collections WHERE id = ? AND is_deleted = 0"
     ).map_err(|e| e.to_string())?
     .query_row(params![id], |row| {
@@ -23,8 +23,10 @@ fn read_collection_by_id(db: &rusqlite::Connection, id: &str) -> Result<Collecti
             cover_url: row.get(6)?,
             folder_id: row.get(7)?,
             is_favorite: row.get::<_, i64>(8)? != 0,
-            created_at: row.get(9)?,
-            updated_at: row.get(10)?,
+            is_archived: row.get::<_, i64>(9)? != 0,
+            read_count: row.get::<_, i64>(10)?,
+            created_at: row.get(11)?,
+            updated_at: row.get(12)?,
             file_path: None,
             tags: vec![],
             folder: None,
@@ -79,6 +81,10 @@ pub fn get_collections(params: Option<GetCollectionsParams>) -> Result<Paginated
         conditions.push("is_favorite = ?".to_string());
         param_values.push(Box::new(if is_favorite { 1 } else { 0 }));
     }
+    if let Some(is_archived) = p.is_archived {
+        conditions.push("is_archived = ?".to_string());
+        param_values.push(Box::new(if is_archived { 1 } else { 0 }));
+    }
     if let Some(ref keyword) = p.keyword {
         conditions.push("(title LIKE ? OR content LIKE ? OR summary LIKE ?)".to_string());
         let kw = format!("%{}%", keyword);
@@ -89,7 +95,7 @@ pub fn get_collections(params: Option<GetCollectionsParams>) -> Result<Paginated
 
     let where_clause = conditions.join(" AND ");
 
-    // 排序
+    // 排序：归档项始终排最后，同组内按用户选择的排序
     let sort_map: std::collections::HashMap<&str, &str> = std::collections::HashMap::from([
         ("created_at", "created_at"),
         ("updated_at", "updated_at"),
@@ -100,6 +106,7 @@ pub fn get_collections(params: Option<GetCollectionsParams>) -> Result<Paginated
         Some("asc") => "ASC",
         _ => "DESC",
     };
+    let order_clause = format!("is_archived ASC, {} {}", sort_by, sort_order);
 
     // 计数
     let count_sql = format!("SELECT COUNT(*) as total FROM collections WHERE {}", where_clause);
@@ -110,9 +117,9 @@ pub fn get_collections(params: Option<GetCollectionsParams>) -> Result<Paginated
 
     // 查询列表
     let list_sql = format!(
-        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, created_at, updated_at \
-         FROM collections WHERE {} ORDER BY {} {} LIMIT ? OFFSET ?",
-        where_clause, sort_by, sort_order
+        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, is_archived, read_count, created_at, updated_at \
+         FROM collections WHERE {} ORDER BY {} LIMIT ? OFFSET ?",
+        where_clause, order_clause
     );
 
     let mut stmt = db.prepare(&list_sql).map_err(|e| e.to_string())?;
@@ -133,8 +140,10 @@ pub fn get_collections(params: Option<GetCollectionsParams>) -> Result<Paginated
             cover_url: row.get(6)?,
             folder_id: row.get(7)?,
             is_favorite: row.get::<_, i64>(8)? != 0,
-            created_at: row.get(9)?,
-            updated_at: row.get(10)?,
+            is_archived: row.get::<_, i64>(9)? != 0,
+            read_count: row.get::<_, i64>(10)?,
+            created_at: row.get(11)?,
+            updated_at: row.get(12)?,
             file_path: None,
             tags: vec![],
             folder: None,
@@ -487,4 +496,51 @@ pub fn move_collection(id: String, folder_id: String) -> Result<serde_json::Valu
         .map_err(|e| e.to_string())?;
 
     Ok(serde_json::json!({ "id": id, "folderId": folder_id }))
+}
+
+#[tauri::command]
+pub fn toggle_archive(id: String) -> Result<serde_json::Value, String> {
+    let db = get_db().lock().map_err(|e| e.to_string())?;
+    let now = Utc::now().to_rfc3339();
+
+    let current: i64 = db.prepare("SELECT is_archived FROM collections WHERE id = ? AND is_deleted = 0")
+        .map_err(|e| e.to_string())?
+        .query_row(params![id], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    let new_val = if current == 1 { 0 } else { 1 };
+
+    db.prepare("UPDATE collections SET is_archived = ?, updated_at = ? WHERE id = ?")
+        .map_err(|e| e.to_string())?
+        .execute(params![new_val, now, id])
+        .map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({ "id": id, "isArchived": new_val != 0 }))
+}
+
+#[tauri::command]
+pub fn increment_read_count(id: String) -> Result<serde_json::Value, String> {
+    let db = get_db().lock().map_err(|e| e.to_string())?;
+    let now = Utc::now().to_rfc3339();
+
+    // 验证收藏项存在
+    let exists: bool = db.prepare("SELECT COUNT(*) FROM collections WHERE id = ? AND is_deleted = 0")
+        .map_err(|e| e.to_string())?
+        .query_row(params![id], |row| row.get::<_, i64>(0).map(|c| c > 0))
+        .map_err(|e| e.to_string())?;
+    if !exists {
+        return Err("收藏项不存在".to_string());
+    }
+
+    db.prepare("UPDATE collections SET read_count = read_count + 1, updated_at = ? WHERE id = ?")
+        .map_err(|e| e.to_string())?
+        .execute(params![now, id])
+        .map_err(|e| e.to_string())?;
+
+    let read_count: i64 = db.prepare("SELECT read_count FROM collections WHERE id = ?")
+        .map_err(|e| e.to_string())?
+        .query_row(params![id], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({ "id": id, "readCount": read_count }))
 }

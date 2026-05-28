@@ -45,6 +45,15 @@ export function initDatabase(dbPath?: string): DatabaseInstance {
     // 创建表结构
     createTables(db);
 
+    // 兼容已有数据库：补充新列（必须在索引创建之前）
+    migrateColumns(db);
+
+    // 补充索引（新列的索引在迁移后才创建）
+    createMigrationIndexes(db);
+
+    // 创建 FTS5 全文搜索虚拟表
+    createFtsTable(db);
+
     console.log(`[数据库] 初始化完成: ${resolvedPath}`);
     return db;
 }
@@ -66,7 +75,9 @@ function createTables(database: DatabaseInstance): void {
             cover_url TEXT,
             folder_id TEXT,
             is_favorite INTEGER NOT NULL DEFAULT 0,
+            is_archived INTEGER NOT NULL DEFAULT 0,
             is_deleted INTEGER NOT NULL DEFAULT 0,
+            read_count INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
@@ -108,9 +119,37 @@ function createTables(database: DatabaseInstance): void {
         CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
         CREATE INDEX IF NOT EXISTS idx_collection_tags_tag_id ON collection_tags(tag_id);
     `);
+}
 
-    // 创建 FTS5 全文搜索虚拟表
-    createFtsTable(database);
+/**
+ * 兼容已有数据库：检测并补充新列
+ * ALTER TABLE ADD COLUMN 对已存在的列不报错（better-sqlite3 会抛异常），需逐列检测
+ */
+function migrateColumns(database: DatabaseInstance): void {
+    const columns = database.prepare(
+        "PRAGMA table_info(collections)"
+    ).all() as { name: string }[];
+
+    const existingNames = new Set(columns.map((c) => c.name));
+
+    if (!existingNames.has('is_archived')) {
+        database.exec('ALTER TABLE collections ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0');
+        console.log('[数据库] 迁移：新增 is_archived 列');
+    }
+
+    if (!existingNames.has('read_count')) {
+        database.exec('ALTER TABLE collections ADD COLUMN read_count INTEGER NOT NULL DEFAULT 0');
+        console.log('[数据库] 迁移：新增 read_count 列');
+    }
+}
+
+/**
+ * 创建迁移列的索引（在 migrateColumns 之后执行）
+ */
+function createMigrationIndexes(database: DatabaseInstance): void {
+    database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_collections_is_archived ON collections(is_archived)
+    `);
 }
 
 /**

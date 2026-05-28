@@ -90,10 +90,10 @@ pub fn import_json(_file_name: String, file_data: Vec<u8>) -> Result<ImportResul
             let is_favorite = col.get("is_favorite").and_then(|f| f.as_i64()).unwrap_or(0);
 
             db.prepare(
-                "INSERT INTO collections (id, title, url, type, content, summary, cover_url, folder_id, is_favorite, created_at, updated_at) \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO collections (id, title, url, type, content, summary, cover_url, folder_id, is_favorite, is_archived, read_count, created_at, updated_at) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             ).map_err(|e| e.to_string())?
-            .execute(params![id, title, url, rtype, content, summary, cover_url, folder_id, is_favorite, now, now])
+            .execute(params![id, title, url, rtype, content, summary, cover_url, folder_id, is_favorite, 0, 0, now, now])
             .map_err(|e| e.to_string())?;
 
             // 关联标签
@@ -230,8 +230,8 @@ fn import_folders_recursive(db: &rusqlite::Connection, folders: &[BookmarkFolder
 
             let id = Uuid::new_v4().to_string();
             let _ = db.execute(
-                "INSERT INTO collections (id, title, url, type, content, summary, cover_url, folder_id, is_favorite, created_at, updated_at) \
-                 VALUES (?, ?, ?, 'link', NULL, NULL, NULL, ?, 0, ?, ?)",
+                "INSERT INTO collections (id, title, url, type, content, summary, cover_url, folder_id, is_favorite, is_archived, read_count, created_at, updated_at) \
+                 VALUES (?, ?, ?, 'link', NULL, NULL, NULL, ?, 0, 0, 0, ?, ?)",
                 rusqlite::params![id, title, url, folder_id, now, now]
             );
             result.collections_created += 1;

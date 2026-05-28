@@ -3,7 +3,7 @@
  * 查看收藏内容，支持编辑
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { useFolderStore, type FolderState } from '../store/folderStore';
@@ -30,6 +30,7 @@ export default function CollectionDetail() {
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const readCountedRef = useRef(false);
     const deepReadTask = useDeepReadStore((s) => s.tasks.find((t) => t.collectionId === (id ?? '')));
     const completedContent = useDeepReadStore((s) => id ? s.completedContent[id] : undefined);
     const enqueue = useDeepReadStore((s) => s.enqueue);
@@ -76,6 +77,18 @@ export default function CollectionDetail() {
             }
 
             setLocalCollection(detailData);
+
+            // 累加阅读次数（仅首次挂载时执行一次，避免 StrictMode 双调用）
+            if (!readCountedRef.current) {
+                readCountedRef.current = true;
+                api.incrementReadCount(id!).then((result) => {
+                    setLocalCollection((prev) =>
+                        prev ? { ...prev, readCount: result.readCount } : prev
+                    );
+                }).catch((err) => {
+                    console.error('累加阅读次数失败:', err);
+                });
+            }
 
             // 初始化编辑表单
             setEditTitle(detailData.title);
@@ -194,6 +207,15 @@ export default function CollectionDetail() {
     }, [localCollection]);
 
     /**
+     * 切换归档状态 - 乐观更新
+     */
+    const handleToggleArchive = useCallback(() => {
+        if (!localCollection) return;
+        useCollectionStore.getState().optimisticToggleArchive(localCollection.id);
+        setLocalCollection({ ...localCollection, isArchived: !localCollection.isArchived });
+    }, [localCollection]);
+
+    /**
      * 提取精读 - 插队到队列首位
      */
     const handleExtractSummary = () => {
@@ -303,6 +325,17 @@ export default function CollectionDetail() {
                                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                             </svg>
                             {localCollection.isFavorite ? '取消星标' : '添加星标'}
+                        </button>
+                        <button
+                            className={`action-btn ${localCollection.isArchived ? 'warning' : ''}`}
+                            onClick={handleToggleArchive}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill={localCollection.isArchived ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                                <polyline points="21 8 21 21 3 21 3 8" />
+                                <rect x="1" y="3" width="22" height="5" />
+                                <line x1="10" y1="12" x2="14" y2="12" />
+                            </svg>
+                            {localCollection.isArchived ? '取消归档' : '归档'}
                         </button>
                         <button className="action-btn danger" onClick={handleDelete}>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -493,6 +526,15 @@ export default function CollectionDetail() {
                                 </svg>
                                 更新于 {formatDate(localCollection.updatedAt)}
                             </span>
+                            {localCollection.readCount > 0 && (
+                                <span className="detail-meta-item">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                                    </svg>
+                                    已读 {localCollection.readCount} 次
+                                </span>
+                            )}
                             {localCollection.type === 'link' && localCollection.url && (
                                 <a
                                     href={localCollection.url}

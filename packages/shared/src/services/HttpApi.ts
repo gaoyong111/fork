@@ -233,6 +233,18 @@ export class HttpApi extends FavoritesApi {
         });
     }
 
+    async toggleArchive(id: string): Promise<{ id: string; isArchived: boolean }> {
+        return this.request<{ id: string; isArchived: boolean }>(`/collections/${id}/archive`, {
+            method: 'POST',
+        });
+    }
+
+    async incrementReadCount(id: string): Promise<{ id: string; readCount: number }> {
+        return this.request<{ id: string; readCount: number }>(`/collections/${id}/read`, {
+            method: 'POST',
+        });
+    }
+
     // ==================== 文件夹 ====================
 
     async getFolderTree(): Promise<Folder[]> {

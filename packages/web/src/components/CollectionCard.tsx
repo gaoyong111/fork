@@ -19,8 +19,8 @@ interface CollectionCardProps {
     onClick?: (collection: Collection) => void;
     /** 切换星标回调 */
     onToggleFavorite?: (id: string) => void;
-    /** 精读入队回调 */
-    onDeepRead?: (id: string) => void;
+    /** 切换归档回调 */
+    onToggleArchive?: (id: string) => void;
     /** 是否处于可选择模式 */
     selectable?: boolean;
     /** 是否已选中 */
@@ -67,7 +67,7 @@ export default function CollectionCard({
     collection,
     onClick,
     onToggleFavorite,
-    onDeepRead,
+    onToggleArchive,
     selectable,
     selected,
     onSelect,
@@ -108,9 +108,9 @@ export default function CollectionCard({
         onSelect?.(collection.id);
     };
 
-    const handleDeepReadClick = (e: React.MouseEvent) => {
+    const handleArchiveClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        onDeepRead?.(collection.id);
+        onToggleArchive?.(collection.id);
     };
 
     const source = getSourceBadge(collection);
@@ -121,7 +121,7 @@ export default function CollectionCard({
 
     return (
         <div
-            className={`collection-card ${selected ? 'collection-card-selected' : ''}`}
+            className={`collection-card ${selected ? 'collection-card-selected' : ''} ${collection.isArchived ? 'collection-card-archived' : ''}`}
             ref={draggable ? setNodeRef : undefined}
             style={dragStyle}
             onClick={handleClick}
@@ -171,24 +171,6 @@ export default function CollectionCard({
                             <span className="collection-card-source-icon">{source.icon}</span>
                             {source.label}
                         </span>
-                        {!hasDeepRead && !isDeepReading && collection.type === 'link' && collection.url && (
-                            <button
-                                className="collection-card-deepread-trigger"
-                                onClick={handleDeepReadClick}
-                                title="开始精读"
-                            >
-                                精读
-                            </button>
-                        )}
-                        {deepReadTask?.status === 'error' && (
-                            <button
-                                className="collection-card-deepread-trigger"
-                                onClick={handleDeepReadClick}
-                                title="重试精读"
-                            >
-                                重试
-                            </button>
-                        )}
                         {isDeepReading && (
                             <span className="collection-card-deepread-badge processing" title="精读中">
                                 <span className="deep-read-spinner-sm" />
@@ -196,13 +178,9 @@ export default function CollectionCard({
                             </span>
                         )}
                         {hasDeepRead && !isDeepReading && (
-                            <button
-                                className="collection-card-deepread-badge done"
-                                onClick={handleDeepReadClick}
-                                title="已精读，点击重新精读"
-                            >
+                            <span className="collection-card-deepread-badge done">
                                 ✓ 已精读
-                            </button>
+                            </span>
                         )}
                     </div>
                     <button
@@ -219,6 +197,24 @@ export default function CollectionCard({
                             strokeWidth="2"
                         >
                             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                    </button>
+                    <button
+                        className={`collection-card-archive ${collection.isArchived ? 'active' : ''}`}
+                        onClick={handleArchiveClick}
+                        title={collection.isArchived ? '取消归档' : '归档'}
+                    >
+                        <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill={collection.isArchived ? 'currentColor' : 'none'}
+                            stroke="currentColor"
+                            strokeWidth="2"
+                        >
+                            <polyline points="21 8 21 21 3 21 3 8" />
+                            <rect x="1" y="3" width="22" height="5" />
+                            <line x1="10" y1="12" x2="14" y2="12" />
                         </svg>
                     </button>
                 </div>
@@ -268,9 +264,16 @@ export default function CollectionCard({
                             )}
                         </div>
                     )}
-                    <span className="collection-card-time">
-                        {formatRelativeTime(collection.createdAt)}
-                    </span>
+                    <div className="collection-card-footer-right">
+                        {collection.readCount > 0 && (
+                            <span className="collection-card-read-count">
+                                读{collection.readCount}次
+                            </span>
+                        )}
+                        <span className="collection-card-time">
+                            {formatRelativeTime(collection.createdAt)}
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>

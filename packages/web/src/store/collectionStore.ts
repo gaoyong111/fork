@@ -25,6 +25,7 @@ export interface CollectionFilters {
     tagId: string | null;
     keyword: string;
     isFavorite: boolean | null;
+    isArchived: boolean | null;
     sortBy: string;
     sortOrder: 'asc' | 'desc';
 }
@@ -49,6 +50,7 @@ export interface CollectionState {
 
     optimisticDelete: (id: string) => void;
     optimisticToggleFavorite: (id: string) => Promise<void>;
+    optimisticToggleArchive: (id: string) => Promise<void>;
     optimisticMove: (id: string, folderId: string | null) => Promise<void>;
     undo: (undoId: string) => void;
     updateContent: (collectionId: string, content: string) => void;
@@ -74,6 +76,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         tagId: null,
         keyword: '',
         isFavorite: null,
+        isArchived: null,
         sortBy: 'created_at',
         sortOrder: 'desc',
     },
@@ -94,6 +97,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
             folderId: state.filters.folderId || undefined,
             tagId: state.filters.tagId || undefined,
             isFavorite: state.filters.isFavorite || undefined,
+            isArchived: state.filters.isArchived || undefined,
             keyword: state.filters.keyword || undefined,
             ...params,
         };
@@ -218,6 +222,31 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
             set({
                 collections: get().collections.map((c) =>
                     c.id === id ? { ...c, isFavorite: !newFavorite } : c
+                ),
+            });
+        }
+    },
+
+    optimisticToggleArchive: async (id: string) => {
+        const state = get();
+        const target = state.collections.find((c) => c.id === id);
+        if (!target) return;
+
+        const newArchived = !target.isArchived;
+
+        set({
+            collections: state.collections.map((c) =>
+                c.id === id ? { ...c, isArchived: newArchived } : c
+            ),
+        });
+
+        try {
+            await api.toggleArchive(id);
+        } catch (err) {
+            console.error('归档切换失败:', err);
+            set({
+                collections: get().collections.map((c) =>
+                    c.id === id ? { ...c, isArchived: !newArchived } : c
                 ),
             });
         }

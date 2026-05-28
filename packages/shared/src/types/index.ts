@@ -51,6 +51,8 @@ export interface Collection {
     filePath: string | null;
     folderId: string | null;
     isFavorite: boolean;
+    isArchived: boolean;
+    readCount: number;
     createdAt: string;
     updatedAt: string;
     tags: Tag[];
@@ -144,6 +146,7 @@ export interface GetCollectionsParams {
     folderId?: string;
     tagId?: string;
     isFavorite?: boolean;
+    isArchived?: boolean;
     keyword?: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';

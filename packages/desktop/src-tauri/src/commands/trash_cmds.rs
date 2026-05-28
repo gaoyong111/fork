@@ -16,7 +16,7 @@ pub fn get_trash_collections(params: Option<TrashParams>) -> Result<PaginatedDat
         .map_err(|e| e.to_string())?;
 
     let collections: Vec<Collection> = db.prepare(
-        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, created_at, updated_at \
+        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, is_archived, read_count, created_at, updated_at \
          FROM collections WHERE is_deleted = 1 ORDER BY updated_at DESC LIMIT ? OFFSET ?"
     ).map_err(|e| e.to_string())?
     .query_map(params![limit, offset], |row| {
@@ -30,8 +30,10 @@ pub fn get_trash_collections(params: Option<TrashParams>) -> Result<PaginatedDat
             cover_url: row.get(6)?,
             folder_id: row.get(7)?,
             is_favorite: row.get::<_, i64>(8)? != 0,
-            created_at: row.get(9)?,
-            updated_at: row.get(10)?,
+            is_archived: row.get::<_, i64>(9)? != 0,
+            read_count: row.get::<_, i64>(10)?,
+            created_at: row.get(11)?,
+            updated_at: row.get(12)?,
             file_path: None,
             tags: vec![],
             folder: None,

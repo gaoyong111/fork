@@ -41,8 +41,34 @@ pub fn init_db(db_path: Option<&str>) -> &'static Mutex<Connection> {
     })
 }
 
-/// 执行建表 SQL
+/// 执行建表 SQL（先迁移旧库缺列，再跑 schema）
 fn create_tables(conn: &Connection) {
+    migrate_columns(conn);
     let schema_sql = include_str!("schema.sql");
     conn.execute_batch(schema_sql).expect("建表 SQL 执行失败");
+}
+
+/// 兼容已有数据库：检测并补充新列
+fn migrate_columns(conn: &Connection) {
+    let columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(collections)")
+        .unwrap()
+        .query_map([], |row| row.get::<_, String>(1))
+        .unwrap()
+        .filter_map(|c| c.ok())
+        .collect();
+
+    let existing: std::collections::HashSet<String> = columns.into_iter().collect();
+
+    if !existing.contains("is_archived") {
+        conn.execute_batch("ALTER TABLE collections ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0")
+            .expect("迁移 is_archived 列失败");
+        println!("[数据库] 迁移：新增 is_archived 列");
+    }
+
+    if !existing.contains("read_count") {
+        conn.execute_batch("ALTER TABLE collections ADD COLUMN read_count INTEGER NOT NULL DEFAULT 0")
+            .expect("迁移 read_count 列失败");
+        println!("[数据库] 迁移：新增 read_count 列");
+    }
 }

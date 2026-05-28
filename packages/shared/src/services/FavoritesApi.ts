@@ -35,6 +35,8 @@ export abstract class FavoritesApi {
     abstract batchAddTags(ids: string[], tagIds: string[], action?: 'add' | 'replace'): Promise<{ updatedCount: number }>;
     abstract toggleFavorite(id: string): Promise<{ id: string; isFavorite: boolean }>;
     abstract moveCollection(id: string, folderId: string): Promise<{ id: string; folderId: string }>;
+    abstract toggleArchive(id: string): Promise<{ id: string; isArchived: boolean }>;
+    abstract incrementReadCount(id: string): Promise<{ id: string; readCount: number }>;
 
     // ==================== 文件夹 ====================
 

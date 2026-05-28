@@ -131,14 +131,7 @@
     background-color: #e8f5e1;
     color: #3d7a3d;
     border: 1px solid #c5e0b4;
-    cursor: pointer;
-    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
-}
-
-.collection-card-deepread-badge.done:hover {
-    background-color: var(--color-primary);
-    color: #fff;
-    border-color: var(--color-primary);
+    cursor: default;
 }
 
 .deep-read-spinner-sm {
@@ -309,4 +302,60 @@
 
 .collection-card-selected .collection-card-checkbox-icon {
     display: block;
+}
+
+/* 归档卡片 - 降低视觉权重 */
+.collection-card-archived {
+    opacity: 0.65;
+    border-color: var(--color-border-light);
+}
+
+.collection-card-archived:hover {
+    opacity: 0.85;
+}
+
+.collection-card-archived .collection-card-title {
+    color: var(--color-text-tertiary);
+}
+
+.collection-card-archived .collection-card-accent {
+    background-color: var(--color-text-tertiary);
+}
+
+/* 归档按钮 */
+.collection-card-archive {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-full);
+    color: var(--color-text-tertiary);
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.collection-card-archive:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+    transform: scale(1.1);
+}
+
+.collection-card-archive.active {
+    color: var(--color-warning);
+    background-color: var(--color-warning-bg, rgba(245, 158, 11, 0.12));
+}
+
+/* footer 右侧区域 */
+.collection-card-footer-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    white-space: nowrap;
+}
+
+/* 阅读次数 */
+.collection-card-read-count {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
 }
