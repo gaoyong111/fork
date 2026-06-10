@@ -7,8 +7,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import type { Collection } from '../types';
 import { formatRelativeTime, truncateText } from '../utils/format';
-import { useFolderStore } from '../store/folderStore';
-import { useTagStore } from '../store/tagStore';
+import { wechatImageReferrerPolicy } from '../utils/wechatImage';
+import { invalidateStores } from '../store/invalidateStores';
 import * as api from '../services/api';
 import './TrashPage.css';
 
@@ -59,8 +59,7 @@ export default function TrashPage() {
         try {
             await api.restoreCollection(id);
             showToast('已恢复', 'success');
-            await useFolderStore.getState().invalidate();
-            await useTagStore.getState().invalidate();
+            await invalidateStores();
             await loadTrashCollections();
         } catch (err) {
             console.error('恢复失败:', err);
@@ -83,8 +82,7 @@ export default function TrashPage() {
         try {
             await api.permanentDeleteCollection(id);
             showToast('已永久删除', 'success');
-            await useFolderStore.getState().invalidate();
-            await useTagStore.getState().invalidate();
+            await invalidateStores();
             await loadTrashCollections();
         } catch (err) {
             console.error('永久删除失败:', err);
@@ -107,8 +105,7 @@ export default function TrashPage() {
         try {
             await api.restoreAllCollections();
             showToast('已恢复全部', 'success');
-            await useFolderStore.getState().invalidate();
-            await useTagStore.getState().invalidate();
+            await invalidateStores();
             await loadTrashCollections();
         } catch (err) {
             console.error('恢复全部失败:', err);
@@ -132,8 +129,7 @@ export default function TrashPage() {
         try {
             await api.emptyTrash();
             showToast('回收站已清空', 'success');
-            await useFolderStore.getState().invalidate();
-            await useTagStore.getState().invalidate();
+            await invalidateStores();
             await loadTrashCollections();
         } catch (err) {
             console.error('清空回收站失败:', err);
@@ -262,6 +258,7 @@ export default function TrashPage() {
                                             alt={collection.title}
                                             className="trash-page-card-thumbnail"
                                             loading="lazy"
+                                            referrerPolicy={wechatImageReferrerPolicy(collection.thumbnailUrl)}
                                         />
                                     ) : (
                                         <div className="trash-page-card-placeholder">

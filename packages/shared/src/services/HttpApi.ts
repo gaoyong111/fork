@@ -1,17 +1,23 @@
 import type {
     AiConfig,
+    AppPreferences,
     ApiResponse,
+    BackupRecord,
     Collection,
     CreateCollectionParams,
     CreateFolderParams,
     CreateTagParams,
+    DeepReadOptions,
+    DeepReadResult,
     Folder,
     GetCollectionsParams,
     ImportResult,
     MetadataResult,
+    MoveCollectionResult,
     PaginatedData,
     SearchParams,
     SearchResultItem,
+    StorageInfo,
     Tag,
     UpdateCollectionParams,
     UpdateFolderParams,
@@ -28,6 +34,7 @@ const CAMEL_TO_SNAKE_SPECIAL: Record<string, string> = {
     description: 'summary',
     thumbnailUrl: 'cover_url',
     pageSize: 'limit',
+    rawContent: 'raw_content',
 };
 
 /**
@@ -37,6 +44,7 @@ const SNAKE_TO_CAMEL_SPECIAL: Record<string, string> = {
     summary: 'description',
     cover_url: 'thumbnailUrl',
     limit: 'pageSize',
+    raw_content: 'rawContent',
 };
 
 function camelToSnakeStr(str: string): string {
@@ -221,22 +229,30 @@ export class HttpApi extends FavoritesApi {
     }
 
     async toggleFavorite(id: string): Promise<{ id: string; isFavorite: boolean }> {
-        return this.request<{ id: string; isFavorite: boolean }>(`/collections/${id}/favorite`, {
+        const result = await this.request<{ id: string; isFavorite: number | boolean }>(`/collections/${id}/favorite`, {
             method: 'POST',
         });
+        return {
+            id: result.id,
+            isFavorite: result.isFavorite === true || result.isFavorite === 1,
+        };
     }
 
-    async moveCollection(id: string, folderId: string): Promise<{ id: string; folderId: string }> {
-        return this.request<{ id: string; folderId: string }>(`/collections/${id}/move`, {
+    async moveCollection(id: string, folderId: string | null): Promise<MoveCollectionResult> {
+        return this.request<MoveCollectionResult>(`/collections/${id}/move`, {
             method: 'POST',
             body: JSON.stringify({ folderId }),
         });
     }
 
     async toggleArchive(id: string): Promise<{ id: string; isArchived: boolean }> {
-        return this.request<{ id: string; isArchived: boolean }>(`/collections/${id}/archive`, {
+        const result = await this.request<{ id: string; isArchived: number | boolean }>(`/collections/${id}/archive`, {
             method: 'POST',
         });
+        return {
+            id: result.id,
+            isArchived: result.isArchived === true || result.isArchived === 1,
+        };
     }
 
     async incrementReadCount(id: string): Promise<{ id: string; readCount: number }> {
@@ -308,6 +324,11 @@ export class HttpApi extends FavoritesApi {
     // ==================== 文件上传 ====================
 
     async uploadFile(file: File, folderId?: string): Promise<UploadResult> {
+        const MAX_BYTES = 50 * 1024 * 1024;
+        if (file.size > MAX_BYTES) {
+            throw new Error('文件大小不能超过 50MB');
+        }
+
         const formData = new FormData();
         formData.append('file', file);
         if (folderId) {
@@ -333,6 +354,14 @@ export class HttpApi extends FavoritesApi {
         }
 
         return snakeToCamel(result.data) as UploadResult;
+    }
+
+    async uploadFileFromDialog(_folderId?: string): Promise<UploadResult> {
+        throw new Error('仅在桌面端可用');
+    }
+
+    async openFile(_collectionId: string): Promise<void> {
+        throw new Error('仅在桌面端可用');
     }
 
     // ==================== 回收站 ====================
@@ -378,17 +407,25 @@ export class HttpApi extends FavoritesApi {
 
     // ==================== AI ====================
 
-    async extractSummary(url: string, options?: { signal?: AbortSignal }): Promise<{ summary: string }> {
-        return this.request<{ summary: string }>('/ai/summarize', {
+    async deepRead(url: string, options?: DeepReadOptions): Promise<DeepReadResult> {
+        return this.request<DeepReadResult>('/ai/deep-read', {
             method: 'POST',
-            body: JSON.stringify({ url }),
+            body: JSON.stringify({
+                url,
+                rawContent: options?.rawContent,
+                refetch: options?.refetch,
+                templateType: options?.templateType,
+                userDirection: options?.userDirection,
+                previousSummary: options?.previousSummary,
+                summaryMode: options?.summaryMode,
+            }),
             signal: options?.signal,
         });
     }
 
     // ==================== 导入/导出 ====================
 
-    async exportJSON(): Promise<void> {
+    async exportJSON(): Promise<string> {
         const response = await fetch(`${this.apiBase}/export/json`);
         if (!response.ok) {
             const errorData = await response.json().catch(() => null);
@@ -396,9 +433,10 @@ export class HttpApi extends FavoritesApi {
         }
         const blob = await response.blob();
         downloadBlob(blob, getExportFilename('favorites-backup', '.json'));
+        return '';
     }
 
-    async exportHTML(): Promise<void> {
+    async exportHTML(): Promise<string> {
         const response = await fetch(`${this.apiBase}/export/html`);
         if (!response.ok) {
             const errorData = await response.json().catch(() => null);
@@ -406,6 +444,7 @@ export class HttpApi extends FavoritesApi {
         }
         const blob = await response.blob();
         downloadBlob(blob, getExportFilename('bookmarks', '.html'));
+        return '';
     }
 
     async importJSON(file: File): Promise<ImportResult> {
@@ -455,7 +494,7 @@ export class HttpApi extends FavoritesApi {
     // ==================== 数据管理 ====================
     // Web 模式不支持本地备份恢复，这些方法仅在桌面端可用
 
-    async getStorageInfo(): Promise<{ dataDir: string; dbSize: number; uploadsSize: number }> {
+    async getStorageInfo(): Promise<StorageInfo> {
         throw new Error('数据管理功能仅在桌面端可用');
     }
 
@@ -467,7 +506,7 @@ export class HttpApi extends FavoritesApi {
         throw new Error('恢复功能仅在桌面端可用');
     }
 
-    async listBackups(): Promise<Array<{ name: string; path: string; size: number; modifiedAt: string }>> {
+    async listBackups(): Promise<BackupRecord[]> {
         throw new Error('数据管理功能仅在桌面端可用');
     }
 
@@ -491,5 +530,40 @@ export class HttpApi extends FavoritesApi {
 
     async testAiConnection(_config?: AiConfig): Promise<{ success: boolean; model: string; message: string }> {
         throw new Error('AI 设置功能仅在桌面端可用');
+    }
+
+    // ==================== 应用偏好（Web 端 localStorage） ====================
+
+    private static readonly APP_PREFS_KEY = 'favorites.appPreferences';
+
+    private static defaultAppPreferences(): AppPreferences {
+        return { autoDeepRead: true, defaultSummaryMode: 'detailed' };
+    }
+
+    async getAppPreferences(): Promise<AppPreferences> {
+        const defaults = HttpApi.defaultAppPreferences();
+        if (typeof localStorage === 'undefined') return defaults;
+        const raw = localStorage.getItem(HttpApi.APP_PREFS_KEY);
+        if (!raw) return defaults;
+        try {
+            const parsed = JSON.parse(raw) as Partial<AppPreferences>;
+            return {
+                autoDeepRead: parsed.autoDeepRead ?? defaults.autoDeepRead,
+                defaultSummaryMode: parsed.defaultSummaryMode === 'brief' ? 'brief' : 'detailed',
+            };
+        } catch {
+            return defaults;
+        }
+    }
+
+    async setAppPreferences(preferences: AppPreferences): Promise<AppPreferences> {
+        const normalized: AppPreferences = {
+            autoDeepRead: preferences.autoDeepRead,
+            defaultSummaryMode: preferences.defaultSummaryMode === 'brief' ? 'brief' : 'detailed',
+        };
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(HttpApi.APP_PREFS_KEY, JSON.stringify(normalized));
+        }
+        return normalized;
     }
 }

@@ -29,6 +29,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-height: 0;
 }
 
 .layout-header {
@@ -108,6 +109,15 @@
 .layout-content {
     flex: 1;
     overflow-y: auto;
+    padding: var(--spacing-xl);
+    min-height: 0;
+}
+
+/** 列表页：外层不滚动，由内层 .collection-list-scroll 承担 */
+.layout-content--list {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     padding: var(--spacing-xl);
 }
 

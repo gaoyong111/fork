@@ -15,8 +15,10 @@ import PWAInstallPrompt from './components/PWAInstallPrompt';
 import DeepReadProgress from './components/DeepReadProgress';
 import SearchOverlay from './components/SearchOverlay';
 import { ToastProvider } from './contexts/ToastContext';
+import { invalidateStores } from './store/invalidateStores';
+import { useDeepReadStore } from './store/deepReadStore';
+import { useAppSettingsStore } from './store/appSettingsStore';
 import { useFolderStore } from './store/folderStore';
-import { useCollectionStore } from './store/collectionStore';
 import Sidebar from './pages/Sidebar';
 import CollectionList from './pages/CollectionList';
 import CollectionDetail from './pages/CollectionDetail';
@@ -24,6 +26,7 @@ import AddCollection from './pages/AddCollection';
 import DataManage from './pages/DataManage';
 import TrashPage from './pages/TrashPage';
 import useClipboardDetector from './hooks/useClipboardDetector';
+import { useDesktopIntegration } from './hooks/useDesktopIntegration';
 import type { ClipboardDetectResult } from './hooks/useClipboardDetector';
 import * as api from './services/api';
 
@@ -53,7 +56,7 @@ export default function App() {
     const handleQuickSaveSuccess = useCallback(() => {
         setQuickSaveVisible(false);
         setDetectedUrl(null);
-        useFolderStore.getState().invalidate();
+        void invalidateStores(['folders', 'collections']);
     }, []);
 
     /**
@@ -81,6 +84,15 @@ export default function App() {
     }, [detectClipboard]);
 
     /**
+     * 启动时加载偏好，再同步未精读链接到队列
+     */
+    useEffect(() => {
+        void useAppSettingsStore.getState().load().then(() => {
+            void useDeepReadStore.getState().syncPendingFromApi();
+        });
+    }, []);
+
+    /**
      * 监听 open-search-overlay 事件
      * 由 Cmd+K 快捷键或搜索按钮触发
      */
@@ -88,19 +100,6 @@ export default function App() {
         const handler = () => setSearchOverlayVisible(true);
         document.addEventListener('open-search-overlay', handler);
         return () => document.removeEventListener('open-search-overlay', handler);
-    }, []);
-
-    /**
-     * 监听 deep-read-complete 事件
-     * 精读完成后更新 collection content
-     */
-    useEffect(() => {
-        const handler = (e: Event) => {
-            const { collectionId, content } = (e as CustomEvent).detail;
-            useCollectionStore.getState().updateContent(collectionId, content);
-        };
-        document.addEventListener('deep-read-complete', handler);
-        return () => document.removeEventListener('deep-read-complete', handler);
     }, []);
 
     /**
@@ -155,6 +154,42 @@ export default function App() {
         resetClipboard();
         await detectClipboard();
     }, [detectClipboard, resetClipboard]);
+
+    /** 桌面端：托盘/快捷键触发快速收藏 */
+    const handleDesktopQuickSave = useCallback(() => {
+        setQuickSaveVisible(true);
+    }, []);
+
+    /** 桌面端：Deep Link / URL scheme 打开链接 */
+    const handleDesktopOpenUrl = useCallback((url: string) => {
+        let domain = url;
+        try {
+            domain = new URL(url).hostname;
+        } catch {
+            // keep raw url as domain fallback
+        }
+        setDetectedUrl({ url, domain });
+        setQuickSaveVisible(true);
+    }, []);
+
+    /** 桌面端：拖放文件到窗口 */
+    const handleDesktopDropFiles = useCallback(async (paths: string[]) => {
+        if (paths.length === 0) return;
+        try {
+            for (const path of paths) {
+                await api.uploadFileFromPath(path);
+            }
+            await invalidateStores(['folders', 'collections']);
+        } catch (err) {
+            console.error('拖放上传失败:', err);
+        }
+    }, []);
+
+    useDesktopIntegration({
+        onQuickSave: handleDesktopQuickSave,
+        onOpenUrl: handleDesktopOpenUrl,
+        onDropFiles: handleDesktopDropFiles,
+    });
 
     return (
         <BrowserRouter>

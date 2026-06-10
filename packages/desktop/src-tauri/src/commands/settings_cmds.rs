@@ -1,33 +1,6 @@
 use crate::db::get_db;
-use rusqlite::Connection;
-
-#[derive(serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AiConfig {
-    pub api_url: String,
-    pub api_key: String,
-    pub model: String,
-}
-
-/** 从 DB 读取 AI 配置（接受 &Connection，避免在持锁上下文中二次加锁） */
-fn read_ai_config(db: &Connection) -> AiConfig {
-    let api_url = db.prepare("SELECT value FROM settings WHERE key = 'ai_api_url'")
-        .ok()
-        .and_then(|mut stmt| stmt.query_row([], |row| row.get::<_, String>(0)).ok())
-        .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
-
-    let api_key = db.prepare("SELECT value FROM settings WHERE key = 'ai_api_key'")
-        .ok()
-        .and_then(|mut stmt| stmt.query_row([], |row| row.get::<_, String>(0)).ok())
-        .unwrap_or_default();
-
-    let model = db.prepare("SELECT value FROM settings WHERE key = 'ai_model'")
-        .ok()
-        .and_then(|mut stmt| stmt.query_row([], |row| row.get::<_, String>(0)).ok())
-        .unwrap_or_else(|| "gpt-4o-mini".to_string());
-
-    AiConfig { api_url, api_key, model }
-}
+use crate::db::models::{AiConfig, AppPreferences};
+use crate::db::settings::{read_ai_config, read_app_preferences, write_app_preferences};
 
 #[tauri::command]
 pub fn get_ai_config() -> AiConfig {
@@ -58,21 +31,20 @@ pub async fn test_ai_connection(config: Option<AiConfig>) -> Result<serde_json::
     });
 
     if ai_config.api_key.is_empty() {
-        return Err("API Key 未填写".to_string());
+        return Err("请先配置 AI API Key".to_string());
     }
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
-
     let chat_url = format!("{}/chat/completions", ai_config.api_url);
-
     let request_body = serde_json::json!({
         "model": ai_config.model,
-        "messages": [{"role": "user", "content": "Hello"}],
+        "messages": [{ "role": "user", "content": "Hi" }],
         "max_tokens": 5
     });
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| e.to_string())?;
 
     let response = client.post(&chat_url)
         .header("Content-Type", "application/json")
@@ -80,26 +52,38 @@ pub async fn test_ai_connection(config: Option<AiConfig>) -> Result<serde_json::
         .json(&request_body)
         .send()
         .await
-        .map_err(|e| format!("连接失败: {}", e))?;
+        .map_err(|e| e.to_string())?;
 
     if !response.status().is_success() {
-        let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("API 返回错误 ({}): {}", status, body));
+        return Err(format!("连接失败: {}", body));
     }
 
-    let body = response.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
-    let data: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|e| format!("响应不是合法 JSON ({}): 原始内容前200字符: {}", e, &body[..body.len().min(200)]))?;
+    Ok(serde_json::json!({
+        "success": true,
+        "model": ai_config.model,
+        "message": "连接成功"
+    }))
+}
 
-    if data.get("choices").is_some() {
-        Ok(serde_json::json!({
-            "success": true,
-            "model": data.get("model").and_then(|m| m.as_str()).unwrap_or(&ai_config.model),
-            "message": "连接成功，AI 服务可正常使用"
-        }))
+#[tauri::command]
+pub fn get_app_preferences() -> AppPreferences {
+    let db = get_db().lock().unwrap();
+    read_app_preferences(&db)
+}
+
+#[tauri::command]
+pub fn set_app_preferences(preferences: AppPreferences) -> AppPreferences {
+    let db = get_db().lock().unwrap();
+    let mode = if preferences.default_summary_mode == "brief" {
+        "brief"
     } else {
-        let err_msg = data.get("error").and_then(|e| e.get("message")).and_then(|m| m.as_str()).unwrap_or("未知错误");
-        Err(format!("API 响应异常: {}", err_msg))
-    }
+        "detailed"
+    };
+    let prefs = AppPreferences {
+        auto_deep_read: preferences.auto_deep_read,
+        default_summary_mode: mode.to_string(),
+    };
+    write_app_preferences(&db, &prefs);
+    prefs
 }

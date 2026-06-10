@@ -80,6 +80,12 @@
     animation: tagPopoverIn 0.15s ease-out;
 }
 
+.tag-popover-body.direction-up {
+    top: auto;
+    bottom: calc(100% + 4px);
+    animation: tagPopoverUpIn 0.15s ease-out;
+}
+
 .tag-popover-body.align-left {
     left: 0;
 }
@@ -137,6 +143,7 @@
 
 .tag-popover-list {
     overflow-y: auto;
+    overscroll-behavior: contain;
     max-height: 240px;
     padding: var(--spacing-xs) 0;
 }
@@ -327,6 +334,17 @@
     from {
         opacity: 0;
         transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes tagPopoverUpIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
     }
     to {
         opacity: 1;

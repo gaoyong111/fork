@@ -4,12 +4,14 @@
  * 支持批量选择模式和拖拽功能
  */
 
-import React from 'react';
+import React, { memo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { Collection } from '../types';
 import { formatRelativeTime, truncateText } from '../utils/format';
 import { useDeepReadStore } from '../store/deepReadStore';
+import { wechatImageReferrerPolicy } from '../utils/wechatImage';
 import './CollectionCard.css';
 
 interface CollectionCardProps {
@@ -63,7 +65,7 @@ function getSourceBadge(collection: Collection): { label: string; icon: string }
  * 收藏项卡片组件
  * @param props - 组件属性
  */
-export default function CollectionCard({
+export default memo(function CollectionCard({
     collection,
     onClick,
     onToggleFavorite,
@@ -92,6 +94,7 @@ export default function CollectionCard({
     };
 
     const handleFavoriteClick = (e: React.MouseEvent) => {
+        e.preventDefault();
         e.stopPropagation();
         onToggleFavorite?.(collection.id);
     };
@@ -109,14 +112,19 @@ export default function CollectionCard({
     };
 
     const handleArchiveClick = (e: React.MouseEvent) => {
+        e.preventDefault();
         e.stopPropagation();
         onToggleArchive?.(collection.id);
     };
 
     const source = getSourceBadge(collection);
     const hasThumbnail = !!collection.thumbnailUrl;
-    const deepReadTask = useDeepReadStore((s) => s.tasks.find((t) => t.collectionId === collection.id));
-    const hasDeepRead = !!collection.content || !!useDeepReadStore((s) => s.completedContent[collection.id]);
+    const { deepReadTask, hasDeepRead } = useDeepReadStore(
+        useShallow((s) => ({
+            deepReadTask: s.taskByCollectionId[collection.id],
+            hasDeepRead: !!collection.content || !!s.completedContent[collection.id],
+        })),
+    );
     const isDeepReading = deepReadTask?.status === 'processing' || deepReadTask?.status === 'pending';
 
     return (
@@ -158,6 +166,7 @@ export default function CollectionCard({
                         alt={collection.title}
                         className="collection-card-thumbnail"
                         loading="lazy"
+                        referrerPolicy={wechatImageReferrerPolicy(collection.thumbnailUrl)}
                     />
                 </div>
             )}
@@ -184,6 +193,7 @@ export default function CollectionCard({
                         )}
                     </div>
                     <button
+                        type="button"
                         className={`collection-card-favorite ${collection.isFavorite ? 'active' : ''}`}
                         onClick={handleFavoriteClick}
                         title={collection.isFavorite ? '取消星标' : '添加星标'}
@@ -200,6 +210,7 @@ export default function CollectionCard({
                         </svg>
                     </button>
                     <button
+                        type="button"
                         className={`collection-card-archive ${collection.isArchived ? 'active' : ''}`}
                         onClick={handleArchiveClick}
                         title={collection.isArchived ? '取消归档' : '归档'}
@@ -278,4 +289,4 @@ export default function CollectionCard({
             </div>
         </div>
     );
-}
+});

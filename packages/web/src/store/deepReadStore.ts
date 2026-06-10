@@ -1,126 +1,182 @@
 /**
  * deepReadStore - 精读队列管理
- * 参考 folderStore 模式：initialized 标志 + 自动缓存 + invalidate
- * 串行处理队列，完成后保存到 collection.content
+ * 串行处理队列，完成后保存 rawContent 和 summary（content）到 collection
  */
 
 import { create } from 'zustand';
+import {
+    deepReadAiConfig,
+    buildDeepReadCollectionUpdate,
+    type DeepReadTemplateType,
+} from '@favorites/shared/ai/deepRead';
+import { classifyDeepReadError, getMaxAutoRetries, getRetryBackoffMs } from '@favorites/shared/ai/deepReadErrors';
+import type { SummaryMode } from '../types';
 import * as api from '../services/api';
-import type { Collection } from '../types';
+import { useCollectionStore } from './collectionStore';
+import { useAppSettingsStore } from './appSettingsStore';
 
-const PROCESS_INTERVAL = 3000; // 3s 间隔防限流
+const PROCESS_INTERVAL = deepReadAiConfig.processIntervalMs ?? 3000;
+
+function syncTaskMap(tasks: DeepReadTask[]): Record<string, DeepReadTask> {
+    const map: Record<string, DeepReadTask> = {};
+    for (const task of tasks) {
+        map[task.collectionId] = task;
+    }
+    return map;
+}
+
+export type DeepReadPhase = 'fetching' | 'summarizing';
+
+export interface DeepReadEnqueueOptions {
+    /** 已有原文，跳过重抓 */
+    rawContent?: string;
+    /** 强制重新抓取（忽略 rawContent） */
+    refetch?: boolean;
+    /** 文章类型模板 */
+    templateType?: DeepReadTemplateType;
+    /** 再次精读时的用户诉求 */
+    userDirection?: string;
+    /** 再次精读时的先前摘要 */
+    previousSummary?: string;
+    /** 摘要模式 */
+    summaryMode?: SummaryMode;
+}
 
 export interface DeepReadTask {
-    /** 收藏项 ID */
     collectionId: string;
-    /** 目标 URL */
     url: string;
-    /** 收藏项标题（用于 UI 展示） */
     title: string;
-    /** 任务状态 */
     status: 'pending' | 'processing' | 'done' | 'error';
-    /** 优先级：0=普通，1=插队（排到队首） */
     priority: number;
-    /** 错误信息 */
     error?: string;
+    rawContent?: string;
+    refetch?: boolean;
+    templateType?: DeepReadTemplateType;
+    userDirection?: string;
+    previousSummary?: string;
+    summaryMode?: SummaryMode;
+    retryCount?: number;
+    phase?: DeepReadPhase;
 }
 
 export interface DeepReadState {
-    /** 队列任务列表 */
     tasks: DeepReadTask[];
-    /** 当前正在处理的任务 */
+    taskByCollectionId: Record<string, DeepReadTask>;
     currentTask: DeepReadTask | null;
-    /** 是否暂停 */
     paused: boolean;
-    /** 是否已初始化（首次扫描完成） */
-    initialized: boolean;
-    /** 当前 abort controller */
+    /** 是否已从 API 同步过待精读项 */
+    pendingSyncDone: boolean;
     abortController: AbortController | null;
-    /** 精读完成后的 content 缓存（collectionId → content），用于刷新卡片状态 */
+    /** 本次会话累计完成数 */
+    completedCount: number;
     completedContent: Record<string, string>;
-    /** 扫描所有无 content 的链接收藏，加入队列 */
-    initQueue: (collections: Collection[]) => void;
-    /** 入队：priority=1 时插队到队首 */
-    enqueue: (collectionId: string, url: string, title: string, priority?: number) => void;
-    /** 批量入队 */
-    enqueueBatch: (items: { id: string; url: string; title: string }[]) => void;
-    /** 开始/恢复处理 */
+    completedRawContent: Record<string, string>;
+
+    /** 从 API 拉取未精读链接并入队（App 启动时调用一次） */
+    syncPendingFromApi: () => Promise<void>;
+    enqueue: (collectionId: string, url: string, title: string, priority?: number, options?: DeepReadEnqueueOptions) => void;
+    enqueueBatch: (items: { id: string; url: string; title: string; rawContent?: string }[]) => void;
     startProcessing: () => void;
-    /** 暂停队列 */
     pause: () => void;
-    /** 取消单个任务 */
     cancelTask: (collectionId: string) => void;
-    /** 取消所有待处理任务 */
     cancelAll: () => void;
-    /** 重试失败项 */
     retryTask: (collectionId: string) => void;
-    /** 获取某收藏项在队列中的状态 */
     getTaskStatus: (collectionId: string) => DeepReadTask | undefined;
 }
 
 export const useDeepReadStore = create<DeepReadState>((set, get) => ({
     tasks: [],
+    taskByCollectionId: {},
     currentTask: null,
     paused: false,
-    initialized: false,
+    pendingSyncDone: false,
     abortController: null,
+    completedCount: 0,
     completedContent: {},
+    completedRawContent: {},
 
-    initQueue: (collections: Collection[]) => {
-        const pendingItems = collections.filter(
-            (c) => c.type === 'link' && c.url && !c.content
-        );
-        if (pendingItems.length === 0) {
-            set({ initialized: true });
+    syncPendingFromApi: async () => {
+        if (get().pendingSyncDone) return;
+        set({ pendingSyncDone: true });
+
+        if (!useAppSettingsStore.getState().isAutoDeepReadEnabled()) {
             return;
         }
-        const newTasks: DeepReadTask[] = pendingItems.map((c) => ({
-            collectionId: c.id,
-            url: c.url!,
-            title: c.title,
-            status: 'pending',
-            priority: 0,
-        }));
-        set({ tasks: newTasks, initialized: true });
-        // 自动开始处理
-        get().startProcessing();
+
+        try {
+            const data = await api.getCollections({ page: 1, pageSize: 200, type: 'link' });
+            const pending = data.items.filter((c) => c.url && !c.content);
+            if (pending.length === 0) return;
+
+            const state = get();
+            const existingIds = new Set(state.tasks.map((t) => t.collectionId));
+            const newTasks: DeepReadTask[] = pending
+                .filter((c) => !existingIds.has(c.id))
+                .map((c) => ({
+                    collectionId: c.id,
+                    url: c.url!,
+                    title: c.title,
+                    status: 'pending' as const,
+                    priority: 0,
+                    rawContent: c.rawContent || undefined,
+                    summaryMode: useAppSettingsStore.getState().getDefaultSummaryMode(),
+                }));
+
+            if (newTasks.length > 0) {
+                const tasks = [...state.tasks, ...newTasks];
+                set({ tasks, taskByCollectionId: syncTaskMap(tasks) });
+            }
+        } catch (err) {
+            console.error('同步待精读队列失败:', err);
+        } finally {
+            if (!get().paused && !get().currentTask) {
+                get().startProcessing();
+            }
+        }
     },
 
-    enqueue: (collectionId: string, url: string, title: string, priority: number = 0) => {
+    enqueue: (collectionId, url, title, priority = 0, options = {}) => {
         const state = get();
-        // 已在队列中则跳过
-        if (state.tasks.some((t) => t.collectionId === collectionId)) return;
+        if (state.tasks.some((t) => t.collectionId === collectionId && t.status !== 'error')) return;
 
+        const useCachedRaw = !options.refetch && options.rawContent?.trim();
         const newTask: DeepReadTask = {
             collectionId,
             url,
             title,
             status: 'pending',
             priority,
+            rawContent: useCachedRaw ? options.rawContent!.trim() : undefined,
+            refetch: options.refetch ?? false,
+            templateType: options.templateType,
+            userDirection: options.userDirection,
+            previousSummary: options.previousSummary,
+            summaryMode: options.summaryMode ?? useAppSettingsStore.getState().getDefaultSummaryMode(),
+            retryCount: 0,
         };
 
-        // 清除旧的 completedContent，确保重新精读时不展示旧缓存
         const completedContent = { ...state.completedContent };
         delete completedContent[collectionId];
+        const completedRawContent = { ...state.completedRawContent };
+        delete completedRawContent[collectionId];
 
+        const withoutExisting = state.tasks.filter((t) => t.collectionId !== collectionId);
         let tasks: DeepReadTask[];
         if (priority === 1) {
-            // 插队：排到 pending 列最前面
-            const pending = state.tasks.filter((t) => t.status === 'pending');
-            const others = state.tasks.filter((t) => t.status !== 'pending');
+            const pending = withoutExisting.filter((t) => t.status === 'pending');
+            const others = withoutExisting.filter((t) => t.status !== 'pending');
             tasks = [newTask, ...pending, ...others];
         } else {
-            tasks = [...state.tasks, newTask];
+            tasks = [...withoutExisting, newTask];
         }
-        set({ tasks, completedContent });
+        set({ tasks, taskByCollectionId: syncTaskMap(tasks), completedContent, completedRawContent });
 
-        // 如果队列为空或已暂停，尝试恢复处理
         if (!state.currentTask && !state.paused) {
             get().startProcessing();
         }
     },
 
-    enqueueBatch: (items: { id: string; url: string; title: string }[]) => {
+    enqueueBatch: (items) => {
         const state = get();
         const existingIds = new Set(state.tasks.map((t) => t.collectionId));
         const newTasks: DeepReadTask[] = items
@@ -129,10 +185,15 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
                 collectionId: item.id,
                 url: item.url,
                 title: item.title,
-                status: 'pending',
+                status: 'pending' as const,
                 priority: 0,
+                rawContent: item.rawContent,
+                summaryMode: useAppSettingsStore.getState().getDefaultSummaryMode(),
+                retryCount: 0,
             }));
-        set({ tasks: [...state.tasks, ...newTasks] });
+        if (newTasks.length === 0) return;
+        const tasks = [...state.tasks, ...newTasks];
+        set({ tasks, taskByCollectionId: syncTaskMap(tasks) });
         if (!state.currentTask && !state.paused) {
             get().startProcessing();
         }
@@ -140,145 +201,173 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
 
     startProcessing: () => {
         const state = get();
-        if (state.paused) return;
-        if (state.currentTask) return; // 已在处理中
+        if (state.currentTask) return;
+        if (state.paused) {
+            set({ paused: false });
+        }
 
-        const nextTask = state.tasks.find((t) => t.status === 'pending');
+        const freshState = get();
+        const nextTask = freshState.tasks.find((t) => t.status === 'pending');
         if (!nextTask) return;
 
         const controller = new AbortController();
-        const processingTask = { ...nextTask, status: 'processing' as const };
-        const tasks = state.tasks.map((t) =>
+        const phase: DeepReadPhase =
+            nextTask.rawContent && !nextTask.refetch ? 'summarizing' : 'fetching';
+        const processingTask: DeepReadTask = { ...nextTask, status: 'processing', phase };
+        const tasks = freshState.tasks.map((t) =>
             t.collectionId === nextTask.collectionId ? processingTask : t
         );
 
-        set({ tasks, currentTask: processingTask, abortController: controller });
+        set({ tasks, taskByCollectionId: syncTaskMap(tasks), currentTask: processingTask, abortController: controller });
 
-        // 异步处理
         processTask(processingTask, controller.signal)
             .then((result) => {
                 if (controller.signal.aborted) return;
-
-                // 保存到 collection.content
-                return api.updateCollection(processingTask.collectionId, {
-                    content: result.summary,
-                });
+                const mode = processingTask.summaryMode ?? 'detailed';
+                const existing = useCollectionStore.getState().collections.find(
+                    (c) => c.id === processingTask.collectionId,
+                );
+                const updatePayload = buildDeepReadCollectionUpdate(
+                    mode,
+                    result.summary,
+                    result.rawContent,
+                    existing,
+                );
+                return api.updateCollection(processingTask.collectionId, updatePayload);
             })
             .then((updatedCollection) => {
                 if (controller.signal.aborted) return;
-                // 缓存 content 供卡片即时更新，从队列移除已完成任务
+
                 const state = get();
-                const tasks = state.tasks.filter(
-                    (t) => t.collectionId !== processingTask.collectionId
-                );
+                const tasks = state.tasks.filter((t) => t.collectionId !== processingTask.collectionId);
                 const completedContent = {
                     ...state.completedContent,
                     [processingTask.collectionId]: updatedCollection?.content || '',
                 };
-                set({ tasks, currentTask: null, abortController: null, completedContent });
-                // 通知 collectionStore 更新对应条目的 content
-                document.dispatchEvent(new CustomEvent('deep-read-complete', {
-                    detail: { collectionId: processingTask.collectionId, content: updatedCollection?.content || '' },
-                }));
-                // 间隔后处理下一个
+                const completedRawContent = {
+                    ...state.completedRawContent,
+                    [processingTask.collectionId]: updatedCollection?.rawContent || '',
+                };
+                set({
+                    tasks,
+                    taskByCollectionId: syncTaskMap(tasks),
+                    currentTask: null,
+                    abortController: null,
+                    completedContent,
+                    completedRawContent,
+                    completedCount: state.completedCount + 1,
+                });
+                useCollectionStore.getState().updateSummary(
+                    processingTask.collectionId,
+                    updatedCollection,
+                );
                 scheduleNextProcess(PROCESS_INTERVAL);
             })
             .catch((err) => {
                 if (controller.signal.aborted) {
-                    // 取消了当前任务，恢复为 pending
                     const state = get();
-                    const tasks = state.tasks.map((t) =>
-                        t.collectionId === processingTask.collectionId
-                            ? { ...t, status: 'pending' as const }
-                            : t
-                    );
-                    set({ tasks, currentTask: null, abortController: null });
+                    const tasks = state.tasks.filter((t) => t.collectionId !== processingTask.collectionId);
+                    set({ tasks, taskByCollectionId: syncTaskMap(tasks), currentTask: null, abortController: null });
                     return;
                 }
-                // 失败：标记 error
-                const errMsg = err instanceof Error ? err.message : '精读失败';
+
+                const classified = classifyDeepReadError(err);
+                const retryCount = processingTask.retryCount ?? 0;
+                const maxRetries = getMaxAutoRetries();
+
+                if (classified.retryable && retryCount < maxRetries) {
+                    const delay = getRetryBackoffMs(retryCount);
+                    const retryState = get();
+                    const tasks = retryState.tasks.map((t) =>
+                        t.collectionId === processingTask.collectionId
+                            ? {
+                                  ...t,
+                                  status: 'pending' as const,
+                                  retryCount: retryCount + 1,
+                                  error: undefined,
+                                  phase: undefined,
+                              }
+                            : t
+                    );
+                    set({ tasks, taskByCollectionId: syncTaskMap(tasks), currentTask: null, abortController: null });
+                    scheduleNextProcess(delay);
+                    return;
+                }
+
                 const state = get();
                 const tasks = state.tasks.map((t) =>
                     t.collectionId === processingTask.collectionId
-                        ? { ...t, status: 'error' as const, error: errMsg }
+                        ? { ...t, status: 'error' as const, error: classified.message, phase: undefined }
                         : t
                 );
-                set({ tasks, currentTask: null, abortController: null });
-                // 间隔后继续处理下一个
+                set({ tasks, taskByCollectionId: syncTaskMap(tasks), currentTask: null, abortController: null });
                 scheduleNextProcess(PROCESS_INTERVAL);
             });
     },
 
     pause: () => {
         const state = get();
-        // abort 当前处理中的任务
         state.abortController?.abort();
         set({ paused: true, currentTask: null, abortController: null });
     },
 
     cancelTask: (collectionId: string) => {
         const state = get();
-        // 如果是当前正在处理的，abort 它
         if (state.currentTask?.collectionId === collectionId) {
             state.abortController?.abort();
-            // 从队列中移除
-            const tasks = state.tasks.filter(
-                (t) => t.collectionId !== collectionId
-            );
-            set({ tasks, currentTask: null, abortController: null });
-            // 处理下一个
+            const tasks = state.tasks.filter((t) => t.collectionId !== collectionId);
+            set({ tasks, taskByCollectionId: syncTaskMap(tasks), currentTask: null, abortController: null });
             scheduleNextProcess(PROCESS_INTERVAL);
         } else {
-            // 从队列中移除
-            const tasks = state.tasks.filter(
-                (t) => t.collectionId !== collectionId
-            );
-            set({ tasks });
+            const tasks = state.tasks.filter((t) => t.collectionId !== collectionId);
+            set({ tasks, taskByCollectionId: syncTaskMap(tasks) });
         }
     },
 
     cancelAll: () => {
         const state = get();
         state.abortController?.abort();
-        // 只保留 done 和 error 的记录（可选清空），这里直接清空
-        set({ tasks: [], currentTask: null, abortController: null, paused: false });
+        set({
+            tasks: [],
+            taskByCollectionId: {},
+            currentTask: null,
+            abortController: null,
+            paused: false,
+        });
     },
 
     retryTask: (collectionId: string) => {
         const state = get();
         const tasks = state.tasks.map((t) =>
             t.collectionId === collectionId
-                ? { ...t, status: 'pending' as const, error: undefined }
+                ? { ...t, status: 'pending' as const, error: undefined, retryCount: 0, phase: undefined }
                 : t
         );
-        set({ tasks });
+        set({ tasks, taskByCollectionId: syncTaskMap(tasks) });
         if (!state.currentTask && !state.paused) {
             get().startProcessing();
         }
     },
 
-    getTaskStatus: (collectionId: string) => {
-        return get().tasks.find((t) => t.collectionId === collectionId);
-    },
+    getTaskStatus: (collectionId: string) => get().taskByCollectionId[collectionId],
 }));
 
-/**
- * 执行单个精读任务
- * @param task - 精读任务
- * @param signal - AbortSignal
- * @returns AI 生成的摘要
- */
 async function processTask(
     task: DeepReadTask,
     signal: AbortSignal
-): Promise<{ summary: string }> {
-    return api.extractSummary(task.url, { signal });
+): Promise<{ rawContent: string; summary: string; templateType?: string }> {
+    const rawContent = task.refetch ? undefined : task.rawContent;
+    return api.deepRead(task.url, {
+        signal,
+        rawContent,
+        refetch: task.refetch,
+        templateType: task.templateType,
+        userDirection: task.userDirection,
+        previousSummary: task.previousSummary,
+        summaryMode: task.summaryMode,
+    });
 }
 
-/**
- * 延迟后继续处理下一个队列项
- * @param delayMs - 延迟毫秒数
- */
 function scheduleNextProcess(delayMs: number) {
     setTimeout(() => {
         const state = useDeepReadStore.getState();

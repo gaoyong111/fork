@@ -44,6 +44,9 @@ export const searchCollections = adapter.searchCollections.bind(adapter);
 // ==================== 文件上传 ====================
 
 export const uploadFile = adapter.uploadFile.bind(adapter);
+export const uploadFileFromDialog = adapter.uploadFileFromDialog.bind(adapter);
+export const uploadFileFromPath = adapter.uploadFileFromPath.bind(adapter);
+export const openFile = adapter.openFile.bind(adapter);
 
 // ==================== 回收站 ====================
 
@@ -59,7 +62,8 @@ export const fetchMetadata = adapter.fetchMetadata.bind(adapter);
 
 // ==================== AI ====================
 
-export const extractSummary = adapter.extractSummary.bind(adapter);
+export const deepRead = adapter.deepRead.bind(adapter);
+export const cancelDeepRead = adapter.cancelDeepRead.bind(adapter);
 
 // ==================== 导入/导出 ====================
 
@@ -82,3 +86,5 @@ export const getDataDir = adapter.getDataDir.bind(adapter);
 export const getAiConfig = adapter.getAiConfig.bind(adapter);
 export const setAiConfig = adapter.setAiConfig.bind(adapter);
 export const testAiConnection = adapter.testAiConnection.bind(adapter);
+export const getAppPreferences = adapter.getAppPreferences.bind(adapter);
+export const setAppPreferences = adapter.setAppPreferences.bind(adapter);

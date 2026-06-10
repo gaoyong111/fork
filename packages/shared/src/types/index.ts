@@ -12,6 +12,9 @@ export const CollectionType = {
  */
 export type CollectionType = (typeof CollectionType)[keyof typeof CollectionType];
 
+/** 精读摘要模式：简略 / 详细 */
+export type SummaryMode = 'brief' | 'detailed';
+
 /**
  * 标签接口
  */
@@ -47,6 +50,10 @@ export interface Collection {
     url: string | null;
     type: CollectionType;
     content: string | null;
+    contentBrief: string | null;
+    contentDetailed: string | null;
+    summaryMode: SummaryMode | null;
+    rawContent: string | null;
     thumbnailUrl: string | null;
     filePath: string | null;
     folderId: string | null;
@@ -130,6 +137,10 @@ export interface UpdateCollectionParams {
     url?: string;
     type?: CollectionType;
     content?: string;
+    contentBrief?: string | null;
+    contentDetailed?: string | null;
+    summaryMode?: SummaryMode;
+    rawContent?: string;
     thumbnailUrl?: string;
     folderId?: string | null;
     tagIds?: string[];
@@ -230,6 +241,44 @@ export interface ImportResult {
     collectionsSkipped: number;
 }
 
+import type { DeepReadTemplateType } from '../ai/deepReadTemplates';
+
+/**
+ * AI 精读选项
+ */
+export interface DeepReadOptions {
+    signal?: AbortSignal;
+    /** 已有原文时跳过重抓，仅重新生成摘要 */
+    rawContent?: string;
+    /** 强制重新抓取（忽略 rawContent） */
+    refetch?: boolean;
+    /** 文章类型模板，不传则自动检测 */
+    templateType?: DeepReadTemplateType;
+    /** 再次精读时的用户诉求/问题 */
+    userDirection?: string;
+    /** 再次精读时的先前摘要 */
+    previousSummary?: string;
+    /** 摘要模式：简略 / 详细 */
+    summaryMode?: SummaryMode;
+}
+
+/**
+ * 应用偏好设置（精读相关）
+ */
+export interface AppPreferences {
+    /** 收藏链接后是否自动排队精读 */
+    autoDeepRead: boolean;
+    /** 自动精读与手动精读默认使用的摘要模式 */
+    defaultSummaryMode: SummaryMode;
+}
+
+/** AI 精读结果 */
+export interface DeepReadResult {
+    rawContent: string;
+    summary: string;
+    templateType?: DeepReadTemplateType;
+}
+
 /**
  * AI API 配置
  */
@@ -237,4 +286,38 @@ export interface AiConfig {
     apiUrl: string;
     apiKey: string;
     model: string;
+}
+
+/**
+ * 移动收藏项请求参数
+ */
+export interface MoveCollectionParams {
+    folderId: string | null;
+}
+
+/**
+ * 移动收藏项响应
+ */
+export interface MoveCollectionResult {
+    id: string;
+    folderId: string | null;
+}
+
+/**
+ * 本地存储信息（桌面端）
+ */
+export interface StorageInfo {
+    dataDir: string;
+    dbSize: number;
+    uploadsSize: number;
+}
+
+/**
+ * 数据库备份记录（桌面端）
+ */
+export interface BackupRecord {
+    name: string;
+    path: string;
+    size: number;
+    modifiedAt: string;
 }

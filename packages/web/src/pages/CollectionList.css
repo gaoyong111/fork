@@ -6,6 +6,20 @@
     max-width: 1200px;
     margin: 0 auto;
     position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.collection-list-header {
+    flex-shrink: 0;
+}
+
+.collection-list-scroll {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 /* 工具栏 */
@@ -16,6 +30,10 @@
     margin-bottom: var(--spacing-xl);
     gap: var(--spacing-lg);
     flex-wrap: wrap;
+}
+
+.collection-list-header .collection-list-toolbar:last-child {
+    margin-bottom: 0;
 }
 
 .collection-list-toolbar-left {
@@ -81,6 +99,25 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
+}
+
+.collection-list-content.virtual.grid .collection-list-virtual-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--spacing-lg);
+    align-content: start;
+    pointer-events: none;
+}
+
+.collection-list-content.virtual.list .collection-list-virtual-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    pointer-events: none;
+}
+
+.collection-list-content.virtual .collection-card {
+    pointer-events: auto;
 }
 
 /* 加载状态 */

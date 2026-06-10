@@ -3,35 +3,19 @@ use rusqlite::params;
 use uuid::Uuid;
 use chrono::Utc;
 
+pub use crate::db::queries::collection::{
+    batch_load_tags, batch_load_folder_brief, collection_from_row, COLLECTION_SELECT_FIELDS,
+};
+
 /**
  * 读取单个收藏项（不加锁版本，供已持有锁的函数内部调用）
  * 与 get_collection_by_id 逻辑相同，但接受 &Connection 参数避免二次加锁死锁
  */
 fn read_collection_by_id(db: &rusqlite::Connection, id: &str) -> Result<Collection, String> {
     let mut col = db.prepare(
-        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, is_archived, read_count, created_at, updated_at \
-         FROM collections WHERE id = ? AND is_deleted = 0"
+        &format!("SELECT {COLLECTION_SELECT_FIELDS} FROM collections WHERE id = ? AND is_deleted = 0")
     ).map_err(|e| e.to_string())?
-    .query_row(params![id], |row| {
-        Ok(Collection {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            url: row.get(2)?,
-            rtype: row.get(3)?,
-            content: row.get(4)?,
-            summary: row.get(5)?,
-            cover_url: row.get(6)?,
-            folder_id: row.get(7)?,
-            is_favorite: row.get::<_, i64>(8)? != 0,
-            is_archived: row.get::<_, i64>(9)? != 0,
-            read_count: row.get::<_, i64>(10)?,
-            created_at: row.get(11)?,
-            updated_at: row.get(12)?,
-            file_path: None,
-            tags: vec![],
-            folder: None,
-        })
-    }).map_err(|e| e.to_string())?;
+    .query_row(params![id], collection_from_row).map_err(|e| e.to_string())?;
 
     col.tags = db.prepare(
         "SELECT t.id, t.name, t.color, t.created_at \
@@ -117,8 +101,7 @@ pub fn get_collections(params: Option<GetCollectionsParams>) -> Result<Paginated
 
     // 查询列表
     let list_sql = format!(
-        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, is_archived, read_count, created_at, updated_at \
-         FROM collections WHERE {} ORDER BY {} LIMIT ? OFFSET ?",
+        "SELECT {COLLECTION_SELECT_FIELDS} FROM collections WHERE {} ORDER BY {} LIMIT ? OFFSET ?",
         where_clause, order_clause
     );
 
@@ -129,33 +112,14 @@ pub fn get_collections(params: Option<GetCollectionsParams>) -> Result<Paginated
         .chain(std::iter::once(&offset as &dyn rusqlite::types::ToSql))
         .collect();
 
-    let collections = stmt.query_map(rusqlite::params_from_iter(param_refs.iter()), |row| {
-        Ok(Collection {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            url: row.get(2)?,
-            rtype: row.get(3)?,
-            content: row.get(4)?,
-            summary: row.get(5)?,
-            cover_url: row.get(6)?,
-            folder_id: row.get(7)?,
-            is_favorite: row.get::<_, i64>(8)? != 0,
-            is_archived: row.get::<_, i64>(9)? != 0,
-            read_count: row.get::<_, i64>(10)?,
-            created_at: row.get(11)?,
-            updated_at: row.get(12)?,
-            file_path: None,
-            tags: vec![],
-            folder: None,
-        })
-    }).map_err(|e| e.to_string())?
+    let collections = stmt.query_map(rusqlite::params_from_iter(param_refs.iter()), collection_from_row).map_err(|e| e.to_string())?
     .collect::<Result<Vec<Collection>, _>>().map_err(|e| e.to_string())?;
 
     // 批量获取标签
-    let items_with_tags = batch_load_tags(&db, &collections)?;
+    let items_with_tags = batch_load_tags(&db, &collections).map_err(|e| e.to_string())?;
 
     // 获取文件夹信息
-    let items_with_folder = batch_load_folder_brief(&db, &items_with_tags)?;
+    let items_with_folder = batch_load_folder_brief(&db, &items_with_tags).map_err(|e| e.to_string())?;
 
     Ok(PaginatedData {
         items: items_with_folder,
@@ -166,83 +130,6 @@ pub fn get_collections(params: Option<GetCollectionsParams>) -> Result<Paginated
             total_pages: (total + limit - 1) / limit,
         },
     })
-}
-
-pub fn batch_load_tags(db: &rusqlite::Connection, collections: &[Collection]) -> Result<Vec<Collection>, String> {
-    if collections.is_empty() {
-        return Ok(collections.to_vec());
-    }
-
-    let ids: Vec<&str> = collections.iter().map(|c| c.id.as_str()).collect();
-    let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    let sql = format!(
-        "SELECT ct.collection_id, t.id, t.name, t.color, t.created_at \
-         FROM collection_tags ct JOIN tags t ON ct.tag_id = t.id \
-         WHERE ct.collection_id IN ({})",
-        placeholders
-    );
-
-    let mut stmt = db.prepare(&sql).map_err(|e| e.to_string())?;
-    let params: Vec<&dyn rusqlite::types::ToSql> = ids.iter().map(|id| id as &dyn rusqlite::types::ToSql).collect();
-
-    // 构建 collection_id -> tags 映射
-    let tag_rows: Vec<(String, Tag)> = stmt.query_map(rusqlite::params_from_iter(params.iter()), |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            Tag {
-                id: row.get(1)?,
-                name: row.get(2)?,
-                color: row.get(3)?,
-                collection_count: None,
-                created_at: row.get(4)?,
-            }
-        ))
-    }).map_err(|e| e.to_string())?
-    .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
-
-    let mut tag_map: std::collections::HashMap<String, Vec<Tag>> = std::collections::HashMap::new();
-    for (col_id, tag) in tag_rows {
-        tag_map.entry(col_id).or_default().push(tag);
-    }
-
-    Ok(collections.iter().map(|c| {
-        let mut col = c.clone();
-        col.tags = tag_map.get(&c.id).cloned().unwrap_or_default();
-        col
-    }).collect())
-}
-
-pub fn batch_load_folder_brief(db: &rusqlite::Connection, collections: &[Collection]) -> Result<Vec<Collection>, String> {
-    let folder_ids: Vec<String> = collections.iter()
-        .filter_map(|c| c.folder_id.clone())
-        .collect();
-
-    if folder_ids.is_empty() {
-        return Ok(collections.to_vec());
-    }
-
-    let placeholders = folder_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    let sql = format!("SELECT id, name FROM folders WHERE id IN ({})", placeholders);
-
-    let mut stmt = db.prepare(&sql).map_err(|e| e.to_string())?;
-    let params: Vec<&dyn rusqlite::types::ToSql> = folder_ids.iter().map(|id| id as &dyn rusqlite::types::ToSql).collect();
-
-    let folder_map: std::collections::HashMap<String, FolderBrief> = stmt
-        .query_map(rusqlite::params_from_iter(params.iter()), |row| {
-            Ok(FolderBrief { id: row.get(0)?, name: row.get(1)? })
-        }).map_err(|e| e.to_string())?
-        .collect::<Result<Vec<FolderBrief>, _>>().map_err(|e| e.to_string())?
-        .into_iter()
-        .map(|f| (f.id.clone(), f))
-        .collect();
-
-    Ok(collections.iter().map(|c| {
-        let mut col = c.clone();
-        if let Some(ref fid) = c.folder_id {
-            col.folder = folder_map.get(fid).cloned();
-        }
-        col
-    }).collect())
 }
 
 #[tauri::command]
@@ -315,6 +202,22 @@ pub fn update_collection(id: String, data: UpdateCollectionParams) -> Result<Col
     if let Some(ref content) = data.content {
         updates.push("content = ?".to_string());
         param_values.push(Box::new(content.clone()));
+    }
+    if let Some(ref raw_content) = data.raw_content {
+        updates.push("raw_content = ?".to_string());
+        param_values.push(Box::new(raw_content.clone()));
+    }
+    if let Some(ref content_brief) = data.content_brief {
+        updates.push("content_brief = ?".to_string());
+        param_values.push(Box::new(content_brief.clone()));
+    }
+    if let Some(ref content_detailed) = data.content_detailed {
+        updates.push("content_detailed = ?".to_string());
+        param_values.push(Box::new(content_detailed.clone()));
+    }
+    if let Some(ref summary_mode) = data.summary_mode {
+        updates.push("summary_mode = ?".to_string());
+        param_values.push(Box::new(summary_mode.clone()));
     }
     if let Some(ref desc) = data.description {
         updates.push("summary = ?".to_string());
@@ -468,9 +371,10 @@ pub fn toggle_favorite(id: String) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-pub fn move_collection(id: String, folder_id: String) -> Result<serde_json::Value, String> {
+pub fn move_collection(id: String, folder_id: Option<String>) -> Result<serde_json::Value, String> {
     let db = get_db().lock().map_err(|e| e.to_string())?;
     let now = Utc::now().to_rfc3339();
+    let target_folder = folder_id.filter(|s| !s.is_empty());
 
     // 验证收藏项存在
     let col_exists: bool = db.prepare("SELECT COUNT(*) FROM collections WHERE id = ? AND is_deleted = 0")
@@ -481,21 +385,22 @@ pub fn move_collection(id: String, folder_id: String) -> Result<serde_json::Valu
         return Err("收藏项不存在".to_string());
     }
 
-    // 验证文件夹存在
-    let folder_exists: bool = db.prepare("SELECT COUNT(*) FROM folders WHERE id = ?")
-        .map_err(|e| e.to_string())?
-        .query_row(params![folder_id], |row| row.get::<_, i64>(0).map(|c| c > 0))
-        .map_err(|e| e.to_string())?;
-    if !folder_exists {
-        return Err("文件夹不存在".to_string());
+    if let Some(ref fid) = target_folder {
+        let folder_exists: bool = db.prepare("SELECT COUNT(*) FROM folders WHERE id = ?")
+            .map_err(|e| e.to_string())?
+            .query_row(params![fid], |row| row.get::<_, i64>(0).map(|c| c > 0))
+            .map_err(|e| e.to_string())?;
+        if !folder_exists {
+            return Err("文件夹不存在".to_string());
+        }
     }
 
     db.prepare("UPDATE collections SET folder_id = ?, updated_at = ? WHERE id = ?")
         .map_err(|e| e.to_string())?
-        .execute(params![folder_id, now, id])
+        .execute(params![target_folder, now, id])
         .map_err(|e| e.to_string())?;
 
-    Ok(serde_json::json!({ "id": id, "folderId": folder_id }))
+    Ok(serde_json::json!({ "id": id, "folderId": target_folder }))
 }
 
 #[tauri::command]

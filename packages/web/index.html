@@ -29,26 +29,5 @@
     <body>
         <div id="root"></div>
         <script type="module" src="/src/main.tsx"></script>
-
-        <!-- Service Worker 注册（仅在非开发环境） -->
-        <script>
-            if ('serviceWorker' in navigator) {
-                if (location.hostname.includes('localhost')) {
-                    // 开发环境下注销已有的 Service Worker 并清除缓存
-                    navigator.serviceWorker.getRegistrations().then(function (regs) {
-                        regs.forEach(function (r) { r.unregister(); });
-                    });
-                    caches.keys().then(function (names) {
-                        names.forEach(function (n) { caches.delete(n); });
-                    });
-                } else {
-                    window.addEventListener('load', function () {
-                        navigator.serviceWorker.register('/sw.js').catch(function (err) {
-                            console.error('Service Worker 注册失败:', err);
-                        });
-                    });
-                }
-            }
-        </script>
     </body>
 </html>

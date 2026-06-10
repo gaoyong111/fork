@@ -11,9 +11,17 @@ import { useTagStore, type TagState } from '../store/tagStore';
 import { useDeepReadStore } from '../store/deepReadStore';
 import { useCollectionStore } from '../store/collectionStore';
 import TagPopover from '../components/TagPopover';
+import DeepReadDirectionModal from '../components/DeepReadDirectionModal';
 import type { Collection, Folder } from '../types';
+import {
+    isHtmlContent as isHtmlRawContent,
+    getCachedSummary,
+    resolveSummaryMode,
+} from '@favorites/shared/ai/deepRead';
+import type { SummaryMode } from '../types';
 import * as api from '../services/api';
 import { formatDate } from '../utils/format';
+import { wechatImageReferrerPolicy } from '../utils/wechatImage';
 import { useToast } from '../contexts/ToastContext';
 import './CollectionDetail.css';
 
@@ -31,9 +39,11 @@ export default function CollectionDetail() {
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const readCountedRef = useRef(false);
-    const deepReadTask = useDeepReadStore((s) => s.tasks.find((t) => t.collectionId === (id ?? '')));
+    const deepReadTask = useDeepReadStore((s) => (id ? s.taskByCollectionId[id] : undefined));
     const completedContent = useDeepReadStore((s) => id ? s.completedContent[id] : undefined);
+    const completedRawContent = useDeepReadStore((s) => id ? s.completedRawContent[id] : undefined);
     const enqueue = useDeepReadStore((s) => s.enqueue);
+    const retryTask = useDeepReadStore((s) => s.retryTask);
 
     // 编辑表单状态
     const [editTitle, setEditTitle] = useState('');
@@ -42,6 +52,8 @@ export default function CollectionDetail() {
     const [editContent, setEditContent] = useState('');
     const [editFolderId, setEditFolderId] = useState<string | null>(null);
     const [editTagIds, setEditTagIds] = useState<string[]>([]);
+    const [contentMode, setContentMode] = useState<'summary' | 'raw'>('summary');
+    const [showDirectionModal, setShowDirectionModal] = useState(false);
 
     // 文件夹和标签（用于编辑选择，从 store 读取）
     const folders = useFolderStore((s: FolderState) => s.folders);
@@ -52,6 +64,14 @@ export default function CollectionDetail() {
             loadDetail();
         }
     }, [id]);
+
+    useEffect(() => {
+        if (!id || !completedContent) return;
+        setLocalCollection((prev) => {
+            if (!prev || prev.id !== id) return prev;
+            return { ...prev, content: completedContent };
+        });
+    }, [id, completedContent]);
 
     /**
      * 加载收藏详情
@@ -207,20 +227,87 @@ export default function CollectionDetail() {
     }, [localCollection]);
 
     /**
-     * 切换归档状态 - 乐观更新
+     * 切换归档状态
      */
-    const handleToggleArchive = useCallback(() => {
+    const handleToggleArchive = useCallback(async () => {
         if (!localCollection) return;
-        useCollectionStore.getState().optimisticToggleArchive(localCollection.id);
-        setLocalCollection({ ...localCollection, isArchived: !localCollection.isArchived });
-    }, [localCollection]);
+        try {
+            const result = await useCollectionStore.getState().optimisticToggleArchive(localCollection.id);
+            setLocalCollection((prev) =>
+                prev ? { ...prev, isArchived: result.isArchived } : prev
+            );
+        } catch {
+            showToast('归档操作失败，请重试', 'error');
+        }
+    }, [localCollection, showToast]);
 
     /**
-     * 提取精读 - 插队到队列首位
+     * 重新摘要（有原文时跳过重抓，使用默认模板）
      */
-    const handleExtractSummary = () => {
+    const handleResummary = () => {
         if (!localCollection || !localCollection.url) return;
-        enqueue(localCollection.id, localCollection.url, localCollection.title, 1);
+        const raw = localCollection.rawContent || completedRawContent;
+        const mode = resolveSummaryMode(localCollection);
+        enqueue(localCollection.id, localCollection.url, localCollection.title, 1, {
+            rawContent: raw || undefined,
+            summaryMode: mode,
+        });
+    };
+
+    /**
+     * 切换简略 / 详细摘要（有缓存则即时切换，否则排队生成）
+     */
+    const handleSummaryModeChange = async (mode: SummaryMode) => {
+        if (!localCollection?.url || !id) return;
+        if (resolveSummaryMode(localCollection) === mode) return;
+
+        const cached = getCachedSummary(localCollection, mode);
+        if (cached) {
+            try {
+                const updated = await api.updateCollection(id, {
+                    summaryMode: mode,
+                    content: cached,
+                });
+                setLocalCollection(updated);
+                useCollectionStore.getState().updateSummary(id, updated);
+            } catch {
+                showToast('切换摘要模式失败', 'error');
+            }
+            return;
+        }
+
+        const raw = localCollection.rawContent || completedRawContent;
+        enqueue(id, localCollection.url, localCollection.title, 1, {
+            rawContent: raw || undefined,
+            summaryMode: mode,
+        });
+    };
+
+    /**
+     * 定向再次精读（基于原文 + 用户诉求）
+     */
+    const handleDirectedRead = (direction: string) => {
+        if (!localCollection || !localCollection.url) return;
+        const raw = localCollection.rawContent || completedRawContent;
+        const summary = localCollection.content || completedContent || '';
+        setShowDirectionModal(false);
+        enqueue(localCollection.id, localCollection.url, localCollection.title, 1, {
+            rawContent: raw || undefined,
+            userDirection: direction,
+            previousSummary: summary,
+            summaryMode: resolveSummaryMode(localCollection),
+        });
+    };
+
+    /**
+     * 完整重读（重新抓取 + 摘要）
+     */
+    const handleRefetchAndRead = () => {
+        if (!localCollection || !localCollection.url) return;
+        enqueue(localCollection.id, localCollection.url, localCollection.title, 1, {
+            refetch: true,
+            summaryMode: resolveSummaryMode(localCollection),
+        });
     };
 
     /**
@@ -229,6 +316,14 @@ export default function CollectionDetail() {
     const handleCancelExtract = () => {
         if (!id) return;
         useDeepReadStore.getState().cancelTask(id);
+    };
+
+    /**
+     * 重试失败的精读任务
+     */
+    const handleRetryExtract = () => {
+        if (!id) return;
+        retryTask(id);
     };
 
     /**
@@ -262,6 +357,11 @@ export default function CollectionDetail() {
             </div>
         );
     }
+
+    const activeSummaryMode = localCollection ? resolveSummaryMode(localCollection) : 'detailed';
+    const displaySummary = localCollection
+        ? (getCachedSummary(localCollection, activeSummaryMode) || completedContent || '')
+        : (completedContent || '');
 
     if (!localCollection) {
         return (
@@ -347,17 +447,49 @@ export default function CollectionDetail() {
                         {localCollection.type === 'link' && localCollection.url && (
                             <>
                                 {!deepReadTask && (
-                                    <button
-                                        className="action-btn"
-                                        onClick={handleExtractSummary}
-                                        title={localCollection.content ? '重新 AI 精读，插队到队列首位' : 'AI 精读，插队到队列首位'}
-                                    >
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <circle cx="12" cy="12" r="10" />
-                                            <polyline points="12 6 12 12 16 14" />
-                                        </svg>
-                                        {localCollection.content || completedContent ? '重新精读' : '提取精读'}
-                                    </button>
+                                    <>
+                                        {!displaySummary ? (
+                                            <button
+                                                className="action-btn"
+                                                onClick={handleRefetchAndRead}
+                                                title="抓取页面并 AI 精读"
+                                            >
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <circle cx="12" cy="12" r="10" />
+                                                    <polyline points="12 6 12 12 16 14" />
+                                                </svg>
+                                                提取精读
+                                            </button>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    className="action-btn"
+                                                    onClick={() => setShowDirectionModal(true)}
+                                                    title="输入阅读方向，基于原文重新精读"
+                                                >
+                                                    再次精读
+                                                </button>
+                                                {(localCollection.rawContent || completedRawContent) && (
+                                                    <button
+                                                        className="action-btn"
+                                                        onClick={handleResummary}
+                                                        title="使用默认模板重新生成摘要"
+                                                    >
+                                                        重新摘要
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
+                                        {(localCollection.rawContent || completedRawContent) && (
+                                            <button
+                                                className="action-btn"
+                                                onClick={handleRefetchAndRead}
+                                                title="重新抓取网页原文并生成摘要"
+                                            >
+                                                重新抓取
+                                            </button>
+                                        )}
+                                    </>
                                 )}
                                 {deepReadTask?.status === 'pending' && (
                                     <button
@@ -376,7 +508,7 @@ export default function CollectionDetail() {
                                             title="精读中..."
                                         >
                                             <span className="deep-read-spinner-sm" />
-                                            精读中...
+                                            {deepReadTask.phase === 'summarizing' ? '生成摘要...' : '抓取正文...'}
                                         </button>
                                         <button
                                             className="action-btn action-btn-cancel"
@@ -390,7 +522,7 @@ export default function CollectionDetail() {
                                 {deepReadTask?.status === 'error' && (
                                     <button
                                         className="action-btn"
-                                        onClick={handleExtractSummary}
+                                        onClick={handleRetryExtract}
                                         title="重试精读"
                                     >
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -502,7 +634,11 @@ export default function CollectionDetail() {
                         {/* 封面图 */}
                         {localCollection.thumbnailUrl && (
                             <div className="detail-cover">
-                                <img src={localCollection.thumbnailUrl} alt={localCollection.title} />
+                                <img
+                                    src={localCollection.thumbnailUrl}
+                                    alt={localCollection.title}
+                                    referrerPolicy={wechatImageReferrerPolicy(localCollection.thumbnailUrl)}
+                                />
                             </div>
                         )}
 
@@ -568,21 +704,78 @@ export default function CollectionDetail() {
                         )}
 
                         {/* 精读内容（优先展示，使用 completedContent 兜底刷新） */}
-                        {(localCollection.content || completedContent) && (
+                        {displaySummary && (
                             <div className="detail-section">
-                                <h3 className="detail-section-title">
-                                    {isHtmlContent(localCollection.content || completedContent || '') ? 'AI 精读摘要' : '内容'}
-                                </h3>
-                                {isHtmlContent(localCollection.content || completedContent || '') ? (
+                                <div className="detail-section-header">
+                                    <h3 className="detail-section-title">
+                                        {isHtmlContent(displaySummary) ? 'AI 精读摘要' : '内容'}
+                                    </h3>
+                                    <div className="detail-section-header-actions">
+                                        <div className="detail-summary-mode-switch">
+                                            <button
+                                                type="button"
+                                                className={`mode-btn ${activeSummaryMode === 'brief' ? 'active' : ''}`}
+                                                onClick={() => void handleSummaryModeChange('brief')}
+                                                disabled={deepReadTask?.status === 'processing' || deepReadTask?.status === 'pending'}
+                                            >
+                                                简略
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`mode-btn ${activeSummaryMode === 'detailed' ? 'active' : ''}`}
+                                                onClick={() => void handleSummaryModeChange('detailed')}
+                                                disabled={deepReadTask?.status === 'processing' || deepReadTask?.status === 'pending'}
+                                            >
+                                                详细
+                                            </button>
+                                        </div>
+                                        {(localCollection.rawContent || completedRawContent) && (
+                                            <div className="detail-content-mode-switch">
+                                                <button
+                                                    type="button"
+                                                    className={`mode-btn ${contentMode === 'summary' ? 'active' : ''}`}
+                                                    onClick={() => setContentMode('summary')}
+                                                >
+                                                    AI摘要
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className={`mode-btn ${contentMode === 'raw' ? 'active' : ''}`}
+                                                    onClick={() => setContentMode('raw')}
+                                                >
+                                                    原文
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                {contentMode === 'raw' && (localCollection.rawContent || completedRawContent) ? (
+                                    isHtmlRawContent(localCollection.rawContent || completedRawContent || '') ? (
+                                        <div
+                                            className="detail-content-rich detail-raw-content"
+                                            dangerouslySetInnerHTML={{
+                                                __html: DOMPurify.sanitize(localCollection.rawContent || completedRawContent || '', {
+                                                    ADD_ATTR: ['referrerpolicy'],
+                                                }),
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="detail-content-text detail-raw-content">
+                                            {(localCollection.rawContent || completedRawContent || '').split('\n\n').map((para, i) => (
+                                                <p key={i}>{para}</p>
+                                            ))}
+                                        </div>
+                                    )
+                                ) : isHtmlContent(displaySummary) ? (
                                     <div
                                         className="detail-content-rich"
                                         role="document"
                                         aria-label="AI 精读摘要内容"
-                                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(localCollection.content || completedContent || '') }}
+                                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displaySummary) }}
                                     />
                                 ) : (
                                     <div className="detail-content-text">
-                                        {localCollection.content || completedContent}
+                                        {displaySummary}
                                     </div>
                                 )}
                             </div>
@@ -599,6 +792,12 @@ export default function CollectionDetail() {
                 )}
                 </div>
             </div>
+            {showDirectionModal && (
+                <DeepReadDirectionModal
+                    onClose={() => setShowDirectionModal(false)}
+                    onConfirm={handleDirectedRead}
+                />
+            )}
         </div>
     );
 }

@@ -5,12 +5,13 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useToast } from '../contexts/ToastContext';
-import { isTauriEnvironment } from '@favorites/shared/services/createApi';
-import type { ImportResult, AiConfig } from '../types';
+import { usePlatform } from '../hooks/usePlatform';
+import type { ImportResult, AiConfig, SummaryMode } from '../types';
 import * as api from '../services/api';
+import { useAppSettingsStore } from '../store/appSettingsStore';
 import './DataManage.css';
 
-/** 备份记录类型 */
+/** 备份记录类型 — 与 shared StorageInfo/BackupRecord 对齐，后续可迁至 shared 类型 */
 interface BackupRecord {
     name: string;
     path: string;
@@ -24,9 +25,6 @@ interface StorageInfo {
     dbSize: number;
     uploadsSize: number;
 }
-
-/** 是否为桌面端环境（每次调用时检测，避免模块加载时 Tauri internals 尚未注入） */
-const isDesktop = () => isTauriEnvironment();
 
 /**
  * 格式化文件大小为人类可读格式
@@ -58,6 +56,7 @@ function formatDate(iso: string): string {
  */
 export default function DataManage() {
     const { showToast, showConfirm } = useToast();
+    const { isDesktop } = usePlatform();
 
     // 导出状态
     const [exportingJSON, setExportingJSON] = useState(false);
@@ -85,6 +84,10 @@ export default function DataManage() {
     const [showApiKey, setShowApiKey] = useState(false);
     const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string; model?: string } | null>(null);
 
+    const appPreferences = useAppSettingsStore((s) => s.preferences);
+    const saveAppPreferences = useAppSettingsStore((s) => s.save);
+    const [savingAppPrefs, setSavingAppPrefs] = useState(false);
+
     // 文件输入引用
     const jsonInputRef = useRef<HTMLInputElement>(null);
     const htmlInputRef = useRef<HTMLInputElement>(null);
@@ -93,7 +96,7 @@ export default function DataManage() {
      * 加载桌面端存储信息和备份列表
      */
     const loadDesktopData = useCallback(async () => {
-        if (!isDesktop()) return;
+        if (!isDesktop) return;
         setLoadingStorage(true);
         try {
             const info = await api.getStorageInfo();
@@ -113,14 +116,42 @@ export default function DataManage() {
         loadDesktopData();
     }, [loadDesktopData]);
 
+    useEffect(() => {
+        void useAppSettingsStore.getState().load();
+    }, []);
+
+    const handleAutoDeepReadToggle = useCallback(async (enabled: boolean) => {
+        setSavingAppPrefs(true);
+        try {
+            await saveAppPreferences({ autoDeepRead: enabled });
+            showToast('精读设置已保存', 'success');
+        } catch (err) {
+            showToast((err as Error).message || '保存失败', 'error');
+        } finally {
+            setSavingAppPrefs(false);
+        }
+    }, [saveAppPreferences, showToast]);
+
+    const handleDefaultSummaryModeChange = useCallback(async (mode: SummaryMode) => {
+        setSavingAppPrefs(true);
+        try {
+            await saveAppPreferences({ defaultSummaryMode: mode });
+            showToast('精读设置已保存', 'success');
+        } catch (err) {
+            showToast((err as Error).message || '保存失败', 'error');
+        } finally {
+            setSavingAppPrefs(false);
+        }
+    }, [saveAppPreferences, showToast]);
+
     /**
      * 处理 JSON 导出
      */
     const handleExportJSON = useCallback(async () => {
         setExportingJSON(true);
         try {
-            await api.exportJSON();
-            showToast('JSON 备份导出成功', 'success');
+            const savedPath = await api.exportJSON();
+            showToast(savedPath ? `已保存至 ${savedPath}` : 'JSON 备份导出成功', 'success');
         } catch (err) {
             showToast((err as Error).message || '导出失败', 'error');
         } finally {
@@ -134,8 +165,8 @@ export default function DataManage() {
     const handleExportHTML = useCallback(async () => {
         setExportingHTML(true);
         try {
-            await api.exportHTML();
-            showToast('HTML 书签导出成功', 'success');
+            const savedPath = await api.exportHTML();
+            showToast(savedPath ? `已保存至 ${savedPath}` : 'HTML 书签导出成功', 'success');
         } catch (err) {
             showToast((err as Error).message || '导出失败', 'error');
         } finally {
@@ -375,7 +406,7 @@ export default function DataManage() {
             <h2 className="data-manage-title">数据管理</h2>
 
             {/* 桌面端：存储信息与备份恢复 */}
-            {isDesktop() && (
+            {isDesktop && (
                 <div className="data-manage-card">
                     <h3 className="data-manage-card-title">本地数据管理</h3>
                     <p className="data-manage-card-desc">管理本地数据库的备份与恢复，查看存储空间占用。</p>
@@ -456,8 +487,54 @@ export default function DataManage() {
                 </div>
             )}
 
+            {/* 精读偏好 */}
+            <div className="data-manage-card">
+                <h3 className="data-manage-card-title">精读设置</h3>
+                <p className="data-manage-card-desc">
+                    控制收藏链接后是否自动精读，以及默认生成的摘要详细程度。详情页可随时切换简略 / 详细模式。
+                </p>
+                <div className="data-manage-settings-form">
+                    <label className="data-manage-settings-checkbox">
+                        <input
+                            type="checkbox"
+                            checked={appPreferences.autoDeepRead}
+                            disabled={savingAppPrefs}
+                            onChange={(e) => void handleAutoDeepReadToggle(e.target.checked)}
+                        />
+                        <span>收藏链接后自动精读</span>
+                    </label>
+                    <div className="data-manage-settings-item">
+                        <span className="data-manage-settings-label">默认摘要模式</span>
+                        <div className="data-manage-summary-mode-options">
+                            <label className="data-manage-settings-radio">
+                                <input
+                                    type="radio"
+                                    name="defaultSummaryMode"
+                                    value="brief"
+                                    checked={appPreferences.defaultSummaryMode === 'brief'}
+                                    disabled={savingAppPrefs}
+                                    onChange={() => void handleDefaultSummaryModeChange('brief')}
+                                />
+                                <span>简略</span>
+                            </label>
+                            <label className="data-manage-settings-radio">
+                                <input
+                                    type="radio"
+                                    name="defaultSummaryMode"
+                                    value="detailed"
+                                    checked={appPreferences.defaultSummaryMode === 'detailed'}
+                                    disabled={savingAppPrefs}
+                                    onChange={() => void handleDefaultSummaryModeChange('detailed')}
+                                />
+                                <span>详细</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* 桌面端：AI API 设置 */}
-            {isDesktop() && (
+            {isDesktop && (
                 <div className="data-manage-card">
                     <h3 className="data-manage-card-title">AI 服务设置</h3>
                     <p className="data-manage-card-desc">配置用于精读摘要和智能标签匹配的 AI API。支持 OpenAI 兼容接口（如 DeepSeek、Moonshot 等）。</p>

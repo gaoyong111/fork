@@ -1,5 +1,6 @@
 mod db;
 mod commands;
+mod desktop;
 
 use commands::*;
 
@@ -11,6 +12,20 @@ pub fn run() {
     db::init_db(None);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            desktop::handle_startup_urls(app, argv);
+        }))
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            desktop::setup(app)?;
+            desktop::handle_startup_urls(
+                app.handle(),
+                std::env::args().skip(1).collect(),
+            );
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             // 收藏项
             collection_cmds::get_collections,
@@ -39,6 +54,11 @@ pub fn run() {
             search_cmds::search_collections,
             // 上传
             upload_cmds::upload_file,
+            upload_cmds::upload_file_from_path,
+            upload_cmds::upload_file_dialog,
+            // 文件
+            file_cmds::open_file,
+            file_cmds::reveal_in_folder,
             // 回收站
             trash_cmds::get_trash_collections,
             trash_cmds::restore_collection,
@@ -48,7 +68,8 @@ pub fn run() {
             // 元数据
             metadata_cmds::fetch_metadata,
             // AI
-            ai_cmds::extract_summary,
+            ai_cmds::deep_read,
+            ai_cmds::cancel_deep_read,
             // 导出
             export_cmds::export_json,
             export_cmds::export_html,
@@ -66,10 +87,15 @@ pub fn run() {
             settings_cmds::get_ai_config,
             settings_cmds::set_ai_config,
             settings_cmds::test_ai_connection,
+            settings_cmds::get_app_preferences,
+            settings_cmds::set_app_preferences,
         ])
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .run(tauri::generate_context!())
-        .expect("启动 Tauri 应用失败");
+        .build(tauri::generate_context!())
+        .expect("启动 Tauri 应用失败")
+        .run(|app, event| {
+            desktop::on_run_event(app, &event);
+        });
 }

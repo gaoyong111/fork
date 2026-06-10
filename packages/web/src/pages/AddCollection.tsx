@@ -5,13 +5,17 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDeepReadStore } from '../store/deepReadStore';
+import { useAppSettingsStore } from '../store/appSettingsStore';
 import TagPopover from '../components/TagPopover';
 import { useFolderStore, type FolderState } from '../store/folderStore';
 import { useTagStore, type TagState } from '../store/tagStore';
+import { invalidateStores } from '../store/invalidateStores';
 import { CollectionType } from '../types';
 import type { Folder } from '../types';
 import * as api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { usePlatform } from '../hooks/usePlatform';
 import './AddCollection.css';
 
 /**
@@ -21,6 +25,7 @@ import './AddCollection.css';
 export default function AddCollection() {
     const navigate = useNavigate();
     const { showToast } = useToast();
+    const { isDesktop } = usePlatform();
 
     // 表单状态
     const [type, setType] = useState<CollectionType>(CollectionType.Link);
@@ -36,6 +41,7 @@ export default function AddCollection() {
     // 辅助数据（从 store 读取）
     const folders = useFolderStore((s: FolderState) => s.folders);
     const tags = useTagStore((s: TagState) => s.tags);
+    const enqueueDeepRead = useDeepReadStore((s) => s.enqueue);
     const [submitting, setSubmitting] = useState(false);
     const [fetchingMetadata, setFetchingMetadata] = useState(false);
 
@@ -65,7 +71,7 @@ export default function AddCollection() {
                 await api.uploadFile(file, folderId || undefined);
             } else {
                 // 创建收藏
-                await api.createCollection({
+                const created = await api.createCollection({
                     title: title.trim(),
                     description: description.trim() || undefined,
                     url: type === 'link' ? url.trim() : undefined,
@@ -75,15 +81,20 @@ export default function AddCollection() {
                     folderId: folderId || undefined,
                     tagIds: tagIds.length > 0 ? tagIds : undefined,
                 });
+
+                // 链接类型创建后按设置自动排队精读
+                if (type === 'link' && created.url && useAppSettingsStore.getState().isAutoDeepReadEnabled()) {
+                    enqueueDeepRead(created.id, created.url, created.title, 0, {
+                        summaryMode: useAppSettingsStore.getState().getDefaultSummaryMode(),
+                    });
+                }
             }
 
-            // 刷新侧边栏计数
-            if (tagIds.length > 0) {
-                await useTagStore.getState().invalidate();
-            }
-            if (folderId) {
-                await useFolderStore.getState().invalidate();
-            }
+            // 刷新侧边栏计数与列表
+            const targets: Array<'collections' | 'folders' | 'tags'> = ['collections'];
+            if (tagIds.length > 0) targets.push('tags');
+            if (folderId) targets.push('folders');
+            await invalidateStores(targets);
 
             navigate('/');
         } catch (err) {
@@ -106,6 +117,29 @@ export default function AddCollection() {
             }
         }
         return result;
+    };
+
+    /**
+     * 桌面端：原生文件选择器上传（path-based，不经 IPC 传字节）
+     */
+    const handleDesktopFileUpload = async () => {
+        try {
+            setSubmitting(true);
+            await api.uploadFileFromDialog(folderId || undefined);
+            if (folderId) {
+                await invalidateStores(['folders', 'collections']);
+            } else {
+                await invalidateStores(['collections']);
+            }
+            navigate('/');
+        } catch (err) {
+            const message = err instanceof Error ? err.message : '上传失败';
+            if (message !== '用户取消了选择') {
+                showToast(message, 'error');
+            }
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     /**
@@ -248,6 +282,16 @@ export default function AddCollection() {
                 {type === 'file' && (
                     <div className="form-group">
                         <label className="form-label">选择文件</label>
+                        {isDesktop ? (
+                            <button
+                                type="button"
+                                className="action-btn action-btn-primary"
+                                onClick={handleDesktopFileUpload}
+                                disabled={submitting}
+                            >
+                                {submitting ? '上传中…' : '从系统选择文件并上传'}
+                            </button>
+                        ) : (
                         <div className="file-upload-area">
                             <input
                                 type="file"
@@ -276,6 +320,7 @@ export default function AddCollection() {
                                 </div>
                             )}
                         </div>
+                        )}
                     </div>
                 )}
 

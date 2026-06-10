@@ -1,10 +1,7 @@
 use crate::db::get_db;
+use tauri_plugin_dialog::DialogExt;
 
-#[tauri::command]
-pub fn export_json() -> Result<(), String> {
-    let db = get_db().lock().map_err(|e| e.to_string())?;
-
-    // 查询所有文件夹
+fn build_export_json(db: &rusqlite::Connection) -> Result<String, String> {
     let folders: Vec<serde_json::Value> = db.prepare(
         "SELECT id, name, parent_id, sort_order, created_at, updated_at FROM folders ORDER BY sort_order ASC, created_at ASC"
     ).map_err(|e| e.to_string())?
@@ -20,7 +17,6 @@ pub fn export_json() -> Result<(), String> {
     }).map_err(|e| e.to_string())?
     .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
 
-    // 查询所有标签
     let tags: Vec<serde_json::Value> = db.prepare(
         "SELECT id, name, color, created_at FROM tags ORDER BY created_at ASC"
     ).map_err(|e| e.to_string())?
@@ -34,9 +30,8 @@ pub fn export_json() -> Result<(), String> {
     }).map_err(|e| e.to_string())?
     .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
 
-    // 查询所有未删除的收藏项
     let collections: Vec<serde_json::Value> = db.prepare(
-        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, created_at, updated_at \
+        "SELECT id, title, url, type, content, summary, cover_url, file_path, folder_id, is_favorite, is_archived, read_count, created_at, updated_at \
          FROM collections WHERE is_deleted = 0 ORDER BY created_at ASC"
     ).map_err(|e| e.to_string())?
     .query_map([], |row| {
@@ -48,15 +43,17 @@ pub fn export_json() -> Result<(), String> {
             "content": row.get::<_, Option<String>>(4)?,
             "summary": row.get::<_, Option<String>>(5)?,
             "cover_url": row.get::<_, Option<String>>(6)?,
-            "folder_id": row.get::<_, Option<String>>(7)?,
-            "is_favorite": row.get::<_, i64>(8)?,
-            "created_at": row.get::<_, String>(9)?,
-            "updated_at": row.get::<_, String>(10)?,
+            "file_path": row.get::<_, Option<String>>(7)?,
+            "folder_id": row.get::<_, Option<String>>(8)?,
+            "is_favorite": row.get::<_, i64>(9)?,
+            "is_archived": row.get::<_, i64>(10)?,
+            "read_count": row.get::<_, i64>(11)?,
+            "created_at": row.get::<_, String>(12)?,
+            "updated_at": row.get::<_, String>(13)?,
         }))
     }).map_err(|e| e.to_string())?
     .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
 
-    // 查询收藏项的标签关联
     let collection_tags: Vec<(String, String, String, String)> = db.prepare(
         "SELECT ct.collection_id, t.id, t.name, t.color FROM collection_tags ct JOIN tags t ON ct.tag_id = t.id"
     ).map_err(|e| e.to_string())?
@@ -65,13 +62,11 @@ pub fn export_json() -> Result<(), String> {
     }).map_err(|e| e.to_string())?
     .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
 
-    // 构建收藏项标签映射
     let mut tag_map: std::collections::HashMap<String, Vec<serde_json::Value>> = std::collections::HashMap::new();
     for (col_id, tag_id, name, color) in &collection_tags {
         tag_map.entry(col_id.clone()).or_default().push(serde_json::json!({ "id": tag_id, "name": name, "color": color }));
     }
 
-    // 组装带标签的收藏项数据
     let collections_with_tags: Vec<serde_json::Value> = collections.iter().map(|c| {
         let id = c.get("id").and_then(|v| v.as_str()).unwrap_or("");
         let tags = tag_map.get(id).cloned().unwrap_or_default();
@@ -88,22 +83,10 @@ pub fn export_json() -> Result<(), String> {
         "collections": collections_with_tags,
     });
 
-    let filename = format!("favorites-backup-{}.json", chrono::Utc::now().format("%Y-%m-%d"));
-    let json_str = serde_json::to_string_pretty(&export_data).map_err(|e| e.to_string())?;
-
-    let app_dir = dirs::data_local_dir().ok_or("无法确定应用数据目录")?.join("favorites");
-    let exports_dir = app_dir.join("exports");
-    std::fs::create_dir_all(&exports_dir).map_err(|e| e.to_string())?;
-    let file_path = exports_dir.join(&filename);
-    std::fs::write(&file_path, json_str).map_err(|e| e.to_string())?;
-
-    Ok(())
+    serde_json::to_string_pretty(&export_data).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub fn export_html() -> Result<(), String> {
-    let db = get_db().lock().map_err(|e| e.to_string())?;
-
+fn build_export_html(db: &rusqlite::Connection) -> Result<String, String> {
     let folders: Vec<(String, String, Option<String>)> = db.prepare(
         "SELECT id, name, parent_id FROM folders ORDER BY sort_order ASC, created_at ASC"
     ).map_err(|e| e.to_string())?
@@ -193,13 +176,49 @@ pub fn export_html() -> Result<(), String> {
     }
 
     html.push_str("</DL><p>\n");
+    Ok(html)
+}
 
-    let filename = format!("bookmarks-{}.html", chrono::Utc::now().format("%Y-%m-%d"));
-    let app_dir = dirs::data_local_dir().ok_or("无法确定应用数据目录")?.join("favorites");
-    let exports_dir = app_dir.join("exports");
-    std::fs::create_dir_all(&exports_dir).map_err(|e| e.to_string())?;
-    let file_path = exports_dir.join(&filename);
-    std::fs::write(&file_path, html).map_err(|e| e.to_string())?;
+#[tauri::command]
+pub async fn export_json(app: tauri::AppHandle) -> Result<String, String> {
+    let db = get_db().lock().map_err(|e| e.to_string())?;
+    let json_str = build_export_json(&db)?;
 
-    Ok(())
+    let default_name = format!("favorites-backup-{}.json", chrono::Utc::now().format("%Y-%m-%d"));
+    let picked = app
+        .dialog()
+        .file()
+        .set_file_name(&default_name)
+        .add_filter("JSON", &["json"])
+        .blocking_save_file();
+
+    let Some(file_path) = picked else {
+        return Err("用户取消了导出".to_string());
+    };
+
+    let path_str = file_path.to_string();
+    std::fs::write(&path_str, json_str).map_err(|e| e.to_string())?;
+    Ok(path_str)
+}
+
+#[tauri::command]
+pub async fn export_html(app: tauri::AppHandle) -> Result<String, String> {
+    let db = get_db().lock().map_err(|e| e.to_string())?;
+    let html = build_export_html(&db)?;
+
+    let default_name = format!("bookmarks-{}.html", chrono::Utc::now().format("%Y-%m-%d"));
+    let picked = app
+        .dialog()
+        .file()
+        .set_file_name(&default_name)
+        .add_filter("HTML", &["html"])
+        .blocking_save_file();
+
+    let Some(file_path) = picked else {
+        return Err("用户取消了导出".to_string());
+    };
+
+    let path_str = file_path.to_string();
+    std::fs::write(&path_str, html).map_err(|e| e.to_string())?;
+    Ok(path_str)
 }

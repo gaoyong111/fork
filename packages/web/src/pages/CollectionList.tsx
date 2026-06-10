@@ -4,20 +4,24 @@
  * 支持拖拽收藏到文件夹
  */
 
-import { useEffect, useState, useMemo, useRef } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useEffect, useState, useMemo, useRef, useLayoutEffect, useCallback } from 'react';
+import { useSearchParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import SearchBar from '../components/SearchBar';
-import CollectionCard from '../components/CollectionCard';
+import VirtualCollectionList from '../components/VirtualCollectionList';
 import SkeletonCard from '../components/SkeletonCard';
 import BatchActionBar from '../components/BatchActionBar';
 import FolderSelector from '../components/FolderSelector';
 import TagPopover from '../components/TagPopover';
 import { useToast } from '../contexts/ToastContext';
+import { CollectionListScrollContext } from '../contexts/CollectionListScrollContext';
 import { useCollectionStore } from '../store/collectionStore';
 import type { Collection } from '../types';
 import { useFolderStore, type FolderState } from '../store/folderStore';
 import { useTagStore, type TagState } from '../store/tagStore';
+import { invalidateStores } from '../store/invalidateStores';
 import { useDeepReadStore } from '../store/deepReadStore';
+import { getListBodyScrollKey, restoreScrollWhenReady } from '../hooks/useScrollRestoration';
+import { useScrollContainerRestoration } from '../hooks/useScrollContainerRestoration';
 import * as api from '../services/api';
 import './CollectionList.css';
 
@@ -47,6 +51,9 @@ const SORT_OPTIONS: SortOption[] = [
  */
 export default function CollectionList() {
     const navigate = useNavigate();
+    const location = useLocation();
+    const listScrollRef = useRef<HTMLDivElement>(null);
+    const listBodyScrollKey = getListBodyScrollKey(location.pathname, location.search);
     const [searchParams, setSearchParams] = useSearchParams();
     const { showToast, showConfirm } = useToast();
 
@@ -58,7 +65,11 @@ export default function CollectionList() {
     const pageSize = useCollectionStore((s) => s.pageSize);
     const filters = useCollectionStore((s) => s.filters);
     const viewMode = useCollectionStore((s) => s.viewMode);
-    const { invalidate, setFilters, setPage, setViewMode, optimisticToggleFavorite, optimisticToggleArchive } = useCollectionStore();
+    const setFilters = useCollectionStore((s) => s.setFilters);
+    const setPage = useCollectionStore((s) => s.setPage);
+    const setViewMode = useCollectionStore((s) => s.setViewMode);
+    const optimisticToggleFavorite = useCollectionStore((s) => s.optimisticToggleFavorite);
+    const optimisticToggleArchive = useCollectionStore((s) => s.optimisticToggleArchive);
     const totalPages = Math.ceil(total / pageSize);
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -85,6 +96,14 @@ export default function CollectionList() {
         const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
         setFilters({ folderId, tagId, isFavorite, sortBy, sortOrder });
     }, [searchParams, setFilters]);
+
+    useScrollContainerRestoration(listScrollRef, listBodyScrollKey);
+
+    /** 列表数据就绪后恢复滚动（避免 loading 骨架高度不足导致恢复失败） */
+    useLayoutEffect(() => {
+        if (loading) return;
+        restoreScrollWhenReady(listScrollRef.current, listBodyScrollKey);
+    }, [loading, collections.length, listBodyScrollKey]);
 
     
     /**
@@ -148,18 +167,22 @@ export default function CollectionList() {
     };
 
     /**
-     * 切换星标（乐观更新，store 自动处理同步与回滚）
+     * 切换星标
      */
-    const handleToggleFavorite = (id: string) => {
-        optimisticToggleFavorite(id);
-    };
+    const handleToggleFavorite = useCallback((id: string) => {
+        void optimisticToggleFavorite(id).catch(() => {
+            showToast('星标操作失败，请重试', 'error');
+        });
+    }, [optimisticToggleFavorite, showToast]);
 
     /**
-     * 切换归档（乐观更新）
+     * 切换归档
      */
-    const handleToggleArchive = (id: string) => {
-        optimisticToggleArchive(id);
-    };
+    const handleToggleArchive = useCallback((id: string) => {
+        void optimisticToggleArchive(id).catch(() => {
+            showToast('归档操作失败，请重试', 'error');
+        });
+    }, [optimisticToggleArchive, showToast]);
 
     /**
      * 切换页码
@@ -258,10 +281,8 @@ export default function CollectionList() {
         try {
             setBatchLoading(true);
             await api.batchDeleteCollections(Array.from(selectedIds));
-            await useFolderStore.getState().invalidate();
-            await useTagStore.getState().invalidate();
             exitBatchMode();
-            await invalidate();
+            await invalidateStores();
         } catch (err) {
             console.error('批量删除失败:', err);
             showToast('批量删除失败，请重试', 'error');
@@ -282,9 +303,8 @@ export default function CollectionList() {
 
         try {
             await api.batchMoveCollections(Array.from(selectedIds), targetFolderId);
-            await useFolderStore.getState().invalidate();
             exitBatchMode();
-            await invalidate();
+            await invalidateStores(['folders', 'collections']);
         } catch (err) {
             console.error('批量移动失败:', err);
             showToast('批量移动失败，请重试', 'error');
@@ -305,9 +325,8 @@ export default function CollectionList() {
 
         try {
             await api.batchAddTags(Array.from(selectedIds), tagIds, 'add');
-            await useTagStore.getState().invalidate();
             exitBatchMode();
-            await invalidate();
+            await invalidateStores(['tags', 'collections']);
         } catch (err) {
             console.error('批量添加标签失败:', err);
             showToast('批量添加标签失败，请重试', 'error');
@@ -333,9 +352,11 @@ export default function CollectionList() {
     );
 
     return (
-        <div className="collection-list">
-            {/* 工具栏 */}
-            <div className="collection-list-toolbar">
+        <CollectionListScrollContext.Provider value={listScrollRef}>
+            <div className="collection-list">
+                <div className="collection-list-header">
+                    {/* 工具栏 */}
+                    <div className="collection-list-toolbar">
                 <div className="collection-list-toolbar-left">
                     <h2 className="collection-list-title">{getFilterTitle()}</h2>
                     <span className="collection-list-count">
@@ -411,31 +432,66 @@ export default function CollectionList() {
                         </button>
                     </div>
                 </div>
-            </div>
+                    </div>
 
-            {/* 批量操作工具栏 */}
-            {batchMode && (
-                <BatchActionBar
-                    selectedCount={selectedIds.size}
-                    totalCount={collections.length}
-                    isAllSelected={selectedIds.size === collections.length && collections.length > 0}
-                    onSelectAll={handleSelectAll}
-                    onDelete={handleBatchDelete}
-                    onMoveToFolder={() => {
-                        setShowFolderSelector((prev) => !prev);
-                        setShowTagPicker(false);
-                    }}
-                    onAddTags={() => {
-                        setShowTagPicker((prev) => !prev);
-                        setShowFolderSelector(false);
-                    }}
-                    onDeepRead={handleBatchDeepRead}
-                    onCancel={exitBatchMode}
-                />
-            )}
+                    {/* 批量操作工具栏 */}
+                    {batchMode && (
+                        <BatchActionBar
+                            selectedCount={selectedIds.size}
+                            totalCount={collections.length}
+                            isAllSelected={selectedIds.size === collections.length && collections.length > 0}
+                            onSelectAll={handleSelectAll}
+                            onDelete={handleBatchDelete}
+                            onMoveToFolder={() => {
+                                setShowFolderSelector((prev) => !prev);
+                                setShowTagPicker(false);
+                            }}
+                            onAddTags={() => {
+                                setShowTagPicker((prev) => !prev);
+                                setShowFolderSelector(false);
+                            }}
+                            onDeepRead={handleBatchDeepRead}
+                            onCancel={exitBatchMode}
+                        />
+                    )}
 
-            {/* 内容区域 */}
-            {batchLoading ? (
+                    {/* 文件夹选择下拉 */}
+                    {showFolderSelector && (
+                        <div className="collection-list-dropdown-wrapper">
+                            <FolderSelector
+                                folders={folders}
+                                onSelect={handleBatchMove}
+                                onClose={() => setShowFolderSelector(false)}
+                            />
+                        </div>
+                    )}
+
+                    {/* 标签选择面板 */}
+                    {showTagPicker && (
+                        <div className="collection-list-dropdown-wrapper collection-list-dropdown-right">
+                            <TagPopover
+                                mode="trigger"
+                                tags={allTags}
+                                selectedTagIds={[]}
+                                onChange={() => {}}
+                                onConfirm={handleBatchAddTags}
+                                onClose={() => setShowTagPicker(false)}
+                                showFooter
+                                open={showTagPicker}
+                                anchorAlign="right"
+                                onCreateTag={async (name, color) => {
+                                    const newTag = await api.createTag({ name, color });
+                                    await useTagStore.getState().invalidate();
+                                    return newTag;
+                                }}
+                            />
+                        </div>
+                    )}
+                </div>
+
+                <div className="collection-list-scroll" ref={listScrollRef}>
+                {/* 内容区域 */}
+                {batchLoading ? (
                 <div className="collection-list-loading">
                     <div className="loading-spinner" />
                     <span>操作中...</span>
@@ -460,20 +516,16 @@ export default function CollectionList() {
                 </div>
             ) : (
                 <>
-                    <div className={`collection-list-content ${viewMode}`}>
-                        {collections.map((collection) => (
-                            <CollectionCard
-                                key={collection.id}
-                                collection={collection}
-                                onClick={handleCardClick}
-                                onToggleFavorite={handleToggleFavorite}
-                                onToggleArchive={handleToggleArchive}
-                                selectable={batchMode}
-                                selected={selectedIds.has(collection.id)}
-                                onSelect={handleSelectItem}
-                            />
-                        ))}
-                    </div>
+                    <VirtualCollectionList
+                        collections={collections}
+                        viewMode={viewMode}
+                        batchMode={batchMode}
+                        selectedIds={selectedIds}
+                        onCardClick={handleCardClick}
+                        onToggleFavorite={handleToggleFavorite}
+                        onToggleArchive={handleToggleArchive}
+                        onSelect={handleSelectItem}
+                    />
 
                     {/* 分页 */}
                     {totalPages > 1 && (
@@ -499,39 +551,8 @@ export default function CollectionList() {
                     )}
                 </>
             )}
-
-            {/* 文件夹选择下拉 */}
-            {showFolderSelector && (
-                <div className="collection-list-dropdown-wrapper">
-                    <FolderSelector
-                        folders={folders}
-                        onSelect={handleBatchMove}
-                        onClose={() => setShowFolderSelector(false)}
-                    />
-                </div>
-            )}
-
-            {/* 标签选择面板 */}
-            {showTagPicker && (
-                <div className="collection-list-dropdown-wrapper collection-list-dropdown-right">
-                    <TagPopover
-                        mode="trigger"
-                        tags={allTags}
-                        selectedTagIds={[]}
-                        onChange={() => {}}
-                        onConfirm={handleBatchAddTags}
-                        onClose={() => setShowTagPicker(false)}
-                        showFooter
-                        open={showTagPicker}
-                        anchorAlign="right"
-                        onCreateTag={async (name, color) => {
-                            const newTag = await api.createTag({ name, color });
-                            await useTagStore.getState().invalidate();
-                            return newTag;
-                        }}
-                    />
-                </div>
-            )}
+            </div>
         </div>
+        </CollectionListScrollContext.Provider>
     );
 }

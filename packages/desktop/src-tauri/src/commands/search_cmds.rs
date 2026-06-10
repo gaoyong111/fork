@@ -1,5 +1,5 @@
 use crate::db::{models::*, get_db};
-use crate::commands::collection_cmds::{batch_load_tags, batch_load_folder_brief};
+use crate::commands::collection_cmds::{batch_load_tags, batch_load_folder_brief, collection_from_row, COLLECTION_SELECT_FIELDS};
 use rusqlite::params;
 
 /// 转义 FTS5 特殊字符并包装为安全 MATCH 查询
@@ -58,16 +58,21 @@ pub fn search_collections(params: SearchParams) -> Result<PaginatedData<SearchRe
     let rowids: Vec<i64> = fts_results.iter().map(|(rid, _)| *rid).collect();
     let rowid_placeholders = rowids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
 
-    // Step 2: 构建 WHERE 条件
+    // Step 2: 构建 WHERE 条件（参数化）
     let mut conditions = vec!["is_deleted = 0".to_string()];
+    let mut filter_params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![];
+
     if let Some(ref rtype) = params.rtype {
-        conditions.push(format!("type = '{}'", rtype));
+        conditions.push("type = ?".to_string());
+        filter_params.push(Box::new(rtype.clone()));
     }
     if let Some(ref folder_id) = params.folder_id {
-        conditions.push(format!("folder_id = '{}'", folder_id));
+        conditions.push("folder_id = ?".to_string());
+        filter_params.push(Box::new(folder_id.clone()));
     }
     if let Some(ref tag_id) = params.tag_id {
-        conditions.push(format!("id IN (SELECT collection_id FROM collection_tags WHERE tag_id = '{}'", tag_id));
+        conditions.push("id IN (SELECT collection_id FROM collection_tags WHERE tag_id = ?)".to_string());
+        filter_params.push(Box::new(tag_id.clone()));
     }
 
     let where_clause = conditions.join(" AND ");
@@ -77,49 +82,34 @@ pub fn search_collections(params: SearchParams) -> Result<PaginatedData<SearchRe
         "SELECT COUNT(*) FROM collections WHERE rowid IN ({}) AND {}",
         rowid_placeholders, where_clause
     );
+    let count_param_refs: Vec<&dyn rusqlite::types::ToSql> = rowids.iter()
+        .map(|rid| rid as &dyn rusqlite::types::ToSql)
+        .chain(filter_params.iter().map(|p| p.as_ref()))
+        .collect();
     let total: i64 = db.prepare(&count_sql).map_err(|e| e.to_string())?
-        .query_row(rusqlite::params_from_iter(rowids.iter().map(|rid| rid as &dyn rusqlite::types::ToSql)), |row| row.get(0))
+        .query_row(rusqlite::params_from_iter(count_param_refs.iter()), |row| row.get(0))
         .map_err(|e| e.to_string())?;
 
     // Step 4: 查询列表
     let list_sql = format!(
-        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, is_archived, read_count, created_at, updated_at \
-         FROM collections WHERE rowid IN ({}) AND {} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        "SELECT {COLLECTION_SELECT_FIELDS} FROM collections WHERE rowid IN ({}) AND {} ORDER BY created_at DESC LIMIT ? OFFSET ?",
         rowid_placeholders, where_clause
     );
 
     let list_param_refs: Vec<&dyn rusqlite::types::ToSql> = rowids.iter()
         .map(|rid| rid as &dyn rusqlite::types::ToSql)
+        .chain(filter_params.iter().map(|p| p.as_ref()))
         .chain(std::iter::once(&limit as &dyn rusqlite::types::ToSql))
         .chain(std::iter::once(&offset as &dyn rusqlite::types::ToSql))
         .collect();
 
     let collections: Vec<Collection> = db.prepare(&list_sql).map_err(|e| e.to_string())?
-        .query_map(rusqlite::params_from_iter(list_param_refs.iter()), |row| {
-            Ok(Collection {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                url: row.get(2)?,
-                rtype: row.get(3)?,
-                content: row.get(4)?,
-                summary: row.get(5)?,
-                cover_url: row.get(6)?,
-                folder_id: row.get(7)?,
-                is_favorite: row.get::<_, i64>(8)? != 0,
-                is_archived: row.get::<_, i64>(9)? != 0,
-                read_count: row.get::<_, i64>(10)?,
-                created_at: row.get(11)?,
-                updated_at: row.get(12)?,
-                file_path: None,
-                tags: vec![],
-                folder: None,
-            })
-        }).map_err(|e| e.to_string())?
+        .query_map(rusqlite::params_from_iter(list_param_refs.iter()), collection_from_row).map_err(|e| e.to_string())?
         .collect::<Result<Vec<Collection>, _>>().map_err(|e| e.to_string())?;
 
     // 批量获取标签和文件夹信息
-    let with_tags = batch_load_tags(&db, &collections)?;
-    let with_folder = batch_load_folder_brief(&db, &with_tags)?;
+    let with_tags = batch_load_tags(&db, &collections).map_err(|e| e.to_string())?;
+    let with_folder = batch_load_folder_brief(&db, &with_tags).map_err(|e| e.to_string())?;
 
     // 转换为 SearchResultItem，附带 snippet
     let items: Vec<SearchResultItem> = with_folder.iter().map(|c| {

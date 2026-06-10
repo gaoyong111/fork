@@ -8,8 +8,9 @@ pub fn get_tags() -> Result<Vec<Tag>, String> {
     let db = get_db().lock().map_err(|e| e.to_string())?;
 
     let mut stmt = db.prepare(
-        "SELECT t.id, t.name, t.color, t.created_at, \
-         (SELECT COUNT(*) FROM collection_tags ct JOIN collections c ON ct.collection_id = c.id WHERE ct.tag_id = t.id AND c.is_deleted = 0) as collection_count \
+        "SELECT t.id, t.name, t.color, \
+         (SELECT COUNT(*) FROM collection_tags ct JOIN collections c ON ct.collection_id = c.id WHERE ct.tag_id = t.id AND c.is_deleted = 0) as collection_count, \
+         t.created_at \
          FROM tags t ORDER BY collection_count DESC, t.created_at ASC"
     ).map_err(|e| e.to_string())?;
 
@@ -93,8 +94,9 @@ pub fn update_tag(id: String, data: UpdateTagParams) -> Result<Tag, String> {
     }
 
     let mut stmt = db.prepare(
-        "SELECT t.id, t.name, t.color, t.created_at, \
-         (SELECT COUNT(*) FROM collection_tags ct JOIN collections c ON ct.collection_id = c.id WHERE ct.tag_id = t.id AND c.is_deleted = 0) as collection_count \
+        "SELECT t.id, t.name, t.color, \
+         (SELECT COUNT(*) FROM collection_tags ct JOIN collections c ON ct.collection_id = c.id WHERE ct.tag_id = t.id AND c.is_deleted = 0) as collection_count, \
+         t.created_at \
          FROM tags t WHERE t.id = ?"
     ).map_err(|e| e.to_string())?;
 

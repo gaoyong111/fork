@@ -41,6 +41,20 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["favorites"]
+      }
+    },
+    "updater": {
+      "endpoints": [
+        "https://github.com/example/favorites/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
+    }
   }
 }

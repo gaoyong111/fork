@@ -149,9 +149,6 @@
         transform: rotate(360deg);
     }
 }
-    font-weight: 500;
-    line-height: 1.4;
-}
 
 .collection-card-source-icon {
     font-size: 11px;

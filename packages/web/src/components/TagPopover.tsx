@@ -14,6 +14,9 @@ export const PRESET_COLORS = [
     '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280',
 ];
 
+/** Popover 下方最小可用空间（px），低于此值时改为上弹 */
+const POPOVER_MIN_BOTTOM_SPACE = 300;
+
 interface TagPopoverProps {
     /** 所有可选标签 */
     tags: Tag[];
@@ -54,6 +57,7 @@ export default function TagPopover({
     anchorAlign = 'left',
 }: TagPopoverProps) {
     const [internalOpen, setInternalOpen] = useState(false);
+    const [direction, setDirection] = useState<'down' | 'up'>('down');
     const isPopoverOpen = mode === 'always-open' || (mode === 'trigger' ? open : internalOpen);
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -73,6 +77,18 @@ export default function TagPopover({
             setLocalSelectedIds(new Set(selectedTagIds));
         }
     }, [isPopoverOpen, showFooter]);
+
+    /**
+     * 打开时计算 popover 方向：下方空间不足时改为上弹
+     */
+    useEffect(() => {
+        if (mode === 'always-open' || !isPopoverOpen) return;
+        if (!containerRef.current) return;
+
+        const rect = containerRef.current.getBoundingClientRect();
+        const bottomSpace = window.innerHeight - rect.bottom;
+        setDirection(bottomSpace < POPOVER_MIN_BOTTOM_SPACE ? 'up' : 'down');
+    }, [isPopoverOpen, mode]);
 
     // 打开时自动聚焦搜索框
     useEffect(() => {
@@ -287,7 +303,7 @@ export default function TagPopover({
                 </div>
 
                 {isPopoverOpen && (
-                    <div className={`tag-popover-body ${anchorAlign === 'right' ? 'align-right' : 'align-left'}`}>
+                    <div className={`tag-popover-body ${anchorAlign === 'right' ? 'align-right' : 'align-left'} ${direction === 'up' ? 'direction-up' : ''}`}>
                         {renderPopoverBody()}
                     </div>
                 )}
@@ -299,7 +315,7 @@ export default function TagPopover({
     return (
         <div className={`tag-popover-trigger-wrap ${anchorAlign === 'right' ? 'align-right' : 'align-left'}`} ref={containerRef}>
             {isPopoverOpen && (
-                <div className="tag-popover-body">
+                <div className={`tag-popover-body ${direction === 'up' ? 'direction-up' : ''}`}>
                     {renderPopoverBody()}
                 </div>
             )}

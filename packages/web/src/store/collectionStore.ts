@@ -49,23 +49,63 @@ export interface CollectionState {
     searchCollections: (query: string) => Promise<SearchResultItem[]>;
 
     optimisticDelete: (id: string) => void;
-    optimisticToggleFavorite: (id: string) => Promise<void>;
-    optimisticToggleArchive: (id: string) => Promise<void>;
+    optimisticToggleFavorite: (id: string) => Promise<{ id: string; isFavorite: boolean }>;
+    optimisticToggleArchive: (id: string) => Promise<{ id: string; isArchived: boolean }>;
     optimisticMove: (id: string, folderId: string | null) => Promise<void>;
     undo: (undoId: string) => void;
-    updateContent: (collectionId: string, content: string) => void;
+    updateContent: (collectionId: string, content: string, rawContent?: string) => void;
+    updateSummary: (collectionId: string, collection: Collection | undefined) => void;
 }
 
 /**
  * 将 API 返回的数据与 pendingUndos 合并，保留乐观变更
  * 过滤掉待删除的项，恢复已切换的 favorite 状态
  */
+/** 将接口返回的 0/1 规范为 boolean */
+function normalizeCollection(collection: Collection): Collection {
+    return {
+        ...collection,
+        isFavorite: collection.isFavorite === true || (collection.isFavorite as unknown) === 1,
+        isArchived: collection.isArchived === true || (collection.isArchived as unknown) === 1,
+    };
+}
+
+function normalizeCollections(items: Collection[]): Collection[] {
+    return items.map(normalizeCollection);
+}
+
+function patchCollectionFlag(
+    collections: Collection[],
+    id: string,
+    patch: Partial<Pick<Collection, 'isFavorite' | 'isArchived'>>,
+): Collection[] {
+    return collections.map((c) => (c.id === id ? { ...c, ...patch } : c));
+}
+
 function applyOptimisticOverrides(items: Collection[], pendingUndos: UndoAction[]): Collection[] {
     const deletedIds = new Set(
         pendingUndos.filter((u) => u.type === 'delete').map((u) => u.targetId)
     );
     return items
         .filter((c) => !deletedIds.has(c.id));
+}
+
+function buildFetchParams(
+    state: Pick<CollectionState, 'page' | 'pageSize' | 'filters'>,
+    overrides?: Partial<GetCollectionsParams>,
+): GetCollectionsParams {
+    return {
+        page: state.page,
+        pageSize: state.pageSize,
+        sortBy: state.filters.sortBy,
+        sortOrder: state.filters.sortOrder,
+        folderId: state.filters.folderId || undefined,
+        tagId: state.filters.tagId || undefined,
+        isFavorite: state.filters.isFavorite || undefined,
+        isArchived: state.filters.isArchived || undefined,
+        keyword: state.filters.keyword || undefined,
+        ...overrides,
+    };
 }
 
 export const useCollectionStore = create<CollectionState>((set, get) => ({
@@ -89,23 +129,14 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
     fetchCollections: async (params?: Partial<GetCollectionsParams>) => {
         const state = get();
-        const merged: GetCollectionsParams = {
-            page: state.page,
-            pageSize: state.pageSize,
-            sortBy: state.filters.sortBy,
-            sortOrder: state.filters.sortOrder,
-            folderId: state.filters.folderId || undefined,
-            tagId: state.filters.tagId || undefined,
-            isFavorite: state.filters.isFavorite || undefined,
-            isArchived: state.filters.isArchived || undefined,
-            keyword: state.filters.keyword || undefined,
-            ...params,
-        };
+        const merged = buildFetchParams(state, params);
 
         set({ loading: true });
         try {
             const data = await api.getCollections(merged);
-            const collections = applyOptimisticOverrides(data.items, get().pendingUndos);
+            const collections = normalizeCollections(
+                applyOptimisticOverrides(data.items, get().pendingUndos),
+            );
             set({
                 collections,
                 total: data.pagination.total - (data.items.length - collections.length),
@@ -121,17 +152,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     invalidate: async () => {
         set({ loading: true });
         try {
-            const data = await api.getCollections({
-                page: get().page,
-                pageSize: get().pageSize,
-                sortBy: get().filters.sortBy,
-                sortOrder: get().filters.sortOrder,
-                folderId: get().filters.folderId || undefined,
-                tagId: get().filters.tagId || undefined,
-                isFavorite: get().filters.isFavorite || undefined,
-                keyword: get().filters.keyword || undefined,
-            });
-            const collections = applyOptimisticOverrides(data.items, get().pendingUndos);
+            const data = await api.getCollections(buildFetchParams(get()));
+            const collections = normalizeCollections(
+                applyOptimisticOverrides(data.items, get().pendingUndos),
+            );
             set({
                 collections,
                 total: data.pagination.total - (data.items.length - collections.length),
@@ -205,50 +229,68 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     optimisticToggleFavorite: async (id: string) => {
         const state = get();
         const target = state.collections.find((c) => c.id === id);
-        if (!target) return;
+        const prevFavorite = target?.isFavorite;
 
-        const newFavorite = !target.isFavorite;
-
-        set({
-            collections: state.collections.map((c) =>
-                c.id === id ? { ...c, isFavorite: newFavorite } : c
-            ),
-        });
+        if (target) {
+            set({
+                collections: patchCollectionFlag(state.collections, id, {
+                    isFavorite: !normalizeCollection(target).isFavorite,
+                }),
+            });
+        }
 
         try {
-            await api.toggleFavorite(id);
+            const result = await api.toggleFavorite(id);
+            const isFavorite = result.isFavorite === true || (result.isFavorite as unknown) === 1;
+            const latest = get();
+            if (latest.collections.some((c) => c.id === id)) {
+                set({
+                    collections: patchCollectionFlag(latest.collections, id, { isFavorite }),
+                });
+            }
+            return { id: result.id, isFavorite };
         } catch (err) {
             console.error('收藏切换失败:', err);
-            set({
-                collections: get().collections.map((c) =>
-                    c.id === id ? { ...c, isFavorite: !newFavorite } : c
-                ),
-            });
+            if (target && prevFavorite !== undefined) {
+                set({
+                    collections: patchCollectionFlag(get().collections, id, { isFavorite: prevFavorite }),
+                });
+            }
+            throw err;
         }
     },
 
     optimisticToggleArchive: async (id: string) => {
         const state = get();
         const target = state.collections.find((c) => c.id === id);
-        if (!target) return;
+        const prevArchived = target?.isArchived;
 
-        const newArchived = !target.isArchived;
-
-        set({
-            collections: state.collections.map((c) =>
-                c.id === id ? { ...c, isArchived: newArchived } : c
-            ),
-        });
+        if (target) {
+            set({
+                collections: patchCollectionFlag(state.collections, id, {
+                    isArchived: !normalizeCollection(target).isArchived,
+                }),
+            });
+        }
 
         try {
-            await api.toggleArchive(id);
+            const result = await api.toggleArchive(id);
+            const isArchived = result.isArchived === true || (result.isArchived as unknown) === 1;
+            const latest = get();
+            if (latest.collections.some((c) => c.id === id)) {
+                set({
+                    collections: patchCollectionFlag(latest.collections, id, { isArchived }),
+                });
+            }
+            return { id: result.id, isArchived };
         } catch (err) {
             console.error('归档切换失败:', err);
-            set({
-                collections: get().collections.map((c) =>
-                    c.id === id ? { ...c, isArchived: !newArchived } : c
-                ),
-            });
+            if (target && prevArchived !== undefined) {
+                set({
+                    collections: patchCollectionFlag(get().collections, id, { isArchived: prevArchived }),
+                });
+            }
+            throw err;
         }
     },
 
@@ -266,7 +308,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         });
 
         try {
-            await api.moveCollection(id, folderId ?? '');
+            await api.moveCollection(id, folderId);
         } catch (err) {
             console.error('移动失败:', err);
             set({
@@ -302,11 +344,21 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         }
     },
 
-    updateContent: (collectionId: string, content: string) => {
+    updateContent: (collectionId: string, content: string, rawContent?: string) => {
         const state = get();
         set({
             collections: state.collections.map((c) =>
-                c.id === collectionId ? { ...c, content } : c
+                c.id === collectionId ? { ...c, content, ...(rawContent !== undefined ? { rawContent } : {}) } : c
+            ),
+        });
+    },
+
+    updateSummary: (collectionId: string, collection: Collection | undefined) => {
+        if (!collection) return;
+        const normalized = normalizeCollection(collection);
+        set({
+            collections: get().collections.map((c) =>
+                c.id === collectionId ? { ...c, ...normalized } : c
             ),
         });
     },

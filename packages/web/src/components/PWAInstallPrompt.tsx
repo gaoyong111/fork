@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { usePlatform } from '../hooks/usePlatform';
 import './PWAInstallPrompt.css';
 
 /** localStorage 中存储用户关闭引导的 key */
@@ -39,6 +40,7 @@ function isStandaloneMode(): boolean {
  * 支持 Chrome/Edge 的 beforeinstallprompt 和 iOS Safari 的自定义引导
  */
 export default function PWAInstallPrompt() {
+    const { isDesktop } = usePlatform();
     const [visible, setVisible] = useState(false);
     const [isIOS, setIsIOS] = useState(false);
     const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -114,7 +116,7 @@ export default function PWAInstallPrompt() {
         localStorage.setItem(DISMISS_KEY, '1');
     }, []);
 
-    if (!visible) return null;
+    if (isDesktop || !visible) return null;
 
     return (
         <div className="pwa-install-banner">

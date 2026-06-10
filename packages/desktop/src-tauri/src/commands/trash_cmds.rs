@@ -1,5 +1,6 @@
+use crate::commands::collection_cmds::{batch_load_tags, collection_from_row, COLLECTION_SELECT_FIELDS};
+use crate::commands::file_storage;
 use crate::db::{models::*, get_db};
-use crate::commands::collection_cmds::{batch_load_tags};
 use rusqlite::params;
 
 #[tauri::command]
@@ -16,32 +17,12 @@ pub fn get_trash_collections(params: Option<TrashParams>) -> Result<PaginatedDat
         .map_err(|e| e.to_string())?;
 
     let collections: Vec<Collection> = db.prepare(
-        "SELECT id, title, url, type, content, summary, cover_url, folder_id, is_favorite, is_archived, read_count, created_at, updated_at \
-         FROM collections WHERE is_deleted = 1 ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+        &format!("SELECT {COLLECTION_SELECT_FIELDS} FROM collections WHERE is_deleted = 1 ORDER BY updated_at DESC LIMIT ? OFFSET ?")
     ).map_err(|e| e.to_string())?
-    .query_map(params![limit, offset], |row| {
-        Ok(Collection {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            url: row.get(2)?,
-            rtype: row.get(3)?,
-            content: row.get(4)?,
-            summary: row.get(5)?,
-            cover_url: row.get(6)?,
-            folder_id: row.get(7)?,
-            is_favorite: row.get::<_, i64>(8)? != 0,
-            is_archived: row.get::<_, i64>(9)? != 0,
-            read_count: row.get::<_, i64>(10)?,
-            created_at: row.get(11)?,
-            updated_at: row.get(12)?,
-            file_path: None,
-            tags: vec![],
-            folder: None,
-        })
-    }).map_err(|e| e.to_string())?
+    .query_map(params![limit, offset], collection_from_row).map_err(|e| e.to_string())?
     .collect::<Result<Vec<Collection>, _>>().map_err(|e| e.to_string())?;
 
-    let items = batch_load_tags(&db, &collections)?;
+    let items = batch_load_tags(&db, &collections).map_err(|e| e.to_string())?;
 
     Ok(PaginatedData {
         items,
@@ -74,7 +55,6 @@ pub fn permanent_delete_collection(id: String) -> Result<(), String> {
     let db = get_db().lock().map_err(|e| e.to_string())?;
     let tx = db.unchecked_transaction().map_err(|e| e.to_string())?;
 
-    // 验证是已删除状态
     let is_deleted: bool = tx.prepare("SELECT is_deleted FROM collections WHERE id = ?")
         .map_err(|e| e.to_string())?
         .query_row(params![id], |row| row.get::<_, i64>(0).map(|v| v != 0))
@@ -82,6 +62,8 @@ pub fn permanent_delete_collection(id: String) -> Result<(), String> {
     if !is_deleted {
         return Err("收藏项不在回收站中".to_string());
     }
+
+    file_storage::delete_collection_upload_file(&tx, &id);
 
     tx.prepare("DELETE FROM collection_tags WHERE collection_id = ?")
         .map_err(|e| e.to_string())?
@@ -98,6 +80,8 @@ pub fn permanent_delete_collection(id: String) -> Result<(), String> {
 pub fn empty_trash() -> Result<(), String> {
     let db = get_db().lock().map_err(|e| e.to_string())?;
     let tx = db.unchecked_transaction().map_err(|e| e.to_string())?;
+
+    file_storage::delete_upload_files_for_trash(&tx);
 
     tx.prepare("DELETE FROM collection_tags WHERE collection_id IN (SELECT id FROM collections WHERE is_deleted = 1)")
         .map_err(|e| e.to_string())?

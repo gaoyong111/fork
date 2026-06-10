@@ -47,6 +47,14 @@ pub struct Collection {
     #[serde(rename = "type")]
     pub rtype: String,
     pub content: Option<String>,
+    #[serde(rename = "contentBrief")]
+    pub content_brief: Option<String>,
+    #[serde(rename = "contentDetailed")]
+    pub content_detailed: Option<String>,
+    #[serde(rename = "summaryMode")]
+    pub summary_mode: Option<String>,
+    #[serde(rename = "rawContent")]
+    pub raw_content: Option<String>,
     #[serde(rename = "thumbnailUrl")]
     pub cover_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -128,6 +136,13 @@ pub struct UpdateCollectionParams {
     #[serde(rename = "type")]
     pub rtype: Option<String>,
     pub content: Option<String>,
+    pub raw_content: Option<String>,
+    #[serde(rename = "contentBrief")]
+    pub content_brief: Option<String>,
+    #[serde(rename = "contentDetailed")]
+    pub content_detailed: Option<String>,
+    #[serde(rename = "summaryMode")]
+    pub summary_mode: Option<String>,
     pub thumbnail_url: Option<String>,
     pub folder_id: Option<String>,
     pub tag_ids: Option<Vec<String>>,
@@ -237,4 +252,31 @@ pub struct ImportResult {
 pub struct TrashParams {
     pub page: Option<i64>,
     pub page_size: Option<i64>,
+}
+
+/// AI 配置
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AiConfig {
+    pub api_url: String,
+    pub api_key: String,
+    pub model: String,
+}
+
+/// 应用偏好（精读相关）
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AppPreferences {
+    #[serde(default = "default_auto_deep_read")]
+    pub auto_deep_read: bool,
+    #[serde(default = "default_summary_mode")]
+    pub default_summary_mode: String,
+}
+
+fn default_auto_deep_read() -> bool {
+    true
+}
+
+fn default_summary_mode() -> String {
+    "detailed".to_string()
 }

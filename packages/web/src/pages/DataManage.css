@@ -319,6 +319,21 @@
     gap: var(--spacing-md);
 }
 
+.data-manage-settings-checkbox,
+.data-manage-settings-radio {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+.data-manage-summary-mode-options {
+    display: flex;
+    gap: var(--spacing-lg);
+}
+
 .data-manage-settings-item {
     display: flex;
     flex-direction: column;

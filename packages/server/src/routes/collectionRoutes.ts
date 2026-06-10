@@ -50,6 +50,14 @@ interface UpdateCollectionBody {
     url?: string;
     type?: string;
     content?: string;
+    raw_content?: string;
+    rawContent?: string;
+    content_brief?: string | null;
+    contentBrief?: string | null;
+    content_detailed?: string | null;
+    contentDetailed?: string | null;
+    summary_mode?: string;
+    summaryMode?: string;
     summary?: string;
     description?: string;
     cover_url?: string;
@@ -587,6 +595,8 @@ router.put('/:id', (req: Request<{ id: string }, {}, UpdateCollectionBody>, res:
             url,
             type,
             content,
+            raw_content,
+            rawContent,
             summary,
             description,
             cover_url,
@@ -597,6 +607,12 @@ router.put('/:id', (req: Request<{ id: string }, {}, UpdateCollectionBody>, res:
             tagIds,
             is_favorite,
             isFavorite,
+            content_brief,
+            contentBrief,
+            content_detailed,
+            contentDetailed,
+            summary_mode,
+            summaryMode,
         } = req.body;
 
         // 兼容 camelCase 和 snake_case 字段
@@ -605,6 +621,10 @@ router.put('/:id', (req: Request<{ id: string }, {}, UpdateCollectionBody>, res:
         const resolvedFolderId = folder_id !== undefined ? folder_id : folderId;
         const resolvedTagIds = tag_ids !== undefined ? tag_ids : tagIds;
         const resolvedIsFavorite = is_favorite !== undefined ? is_favorite : isFavorite;
+        const resolvedRawContent = raw_content !== undefined ? raw_content : rawContent;
+        const resolvedContentBrief = content_brief !== undefined ? content_brief : contentBrief;
+        const resolvedContentDetailed = content_detailed !== undefined ? content_detailed : contentDetailed;
+        const resolvedSummaryMode = summary_mode !== undefined ? summary_mode : summaryMode;
 
         // 构建更新字段
         const fields: string[] = ['updated_at = ?'];
@@ -638,6 +658,22 @@ router.put('/:id', (req: Request<{ id: string }, {}, UpdateCollectionBody>, res:
         if (content !== undefined) {
             fields.push('content = ?');
             values.push(content || null);
+        }
+        if (resolvedRawContent !== undefined) {
+            fields.push('raw_content = ?');
+            values.push(resolvedRawContent || null);
+        }
+        if (resolvedContentBrief !== undefined) {
+            fields.push('content_brief = ?');
+            values.push(resolvedContentBrief || null);
+        }
+        if (resolvedContentDetailed !== undefined) {
+            fields.push('content_detailed = ?');
+            values.push(resolvedContentDetailed || null);
+        }
+        if (resolvedSummaryMode !== undefined) {
+            fields.push('summary_mode = ?');
+            values.push(resolvedSummaryMode === 'brief' ? 'brief' : 'detailed');
         }
         if (resolvedSummary !== undefined) {
             fields.push('summary = ?');
@@ -763,19 +799,10 @@ router.post('/:id/favorite', (req: Request<{ id: string }>, res: Response) => {
             'UPDATE collections SET is_favorite = ?, updated_at = ? WHERE id = ?'
         ).run(newFavorite, now, id);
 
-        // 查询更新后的结果（含标签）
-        const item = db.prepare('SELECT * FROM collections WHERE id = ?').get(id) as Record<string, unknown>;
-        const tags = db.prepare(`
-            SELECT t.id, t.name, t.color
-            FROM tags t
-            INNER JOIN collection_tags ct ON t.id = ct.tag_id
-            WHERE ct.collection_id = ?
-        `).all(id) as Record<string, unknown>[];
-
         res.json({
             code: 0,
             message: 'success',
-            data: { ...item, tags },
+            data: { id, is_favorite: newFavorite },
         });
     } catch (error) {
         console.error('[收藏项] 切换星标失败:', error);
@@ -878,18 +905,10 @@ router.post('/:id/archive', (req: Request<{ id: string }>, res: Response) => {
             'UPDATE collections SET is_archived = ?, updated_at = ? WHERE id = ?'
         ).run(newArchived, now, id);
 
-        const item = db.prepare('SELECT * FROM collections WHERE id = ?').get(id) as Record<string, unknown>;
-        const tags = db.prepare(`
-            SELECT t.id, t.name, t.color
-            FROM tags t
-            INNER JOIN collection_tags ct ON t.id = ct.tag_id
-            WHERE ct.collection_id = ?
-        `).all(id) as Record<string, unknown>[];
-
         res.json({
             code: 0,
             message: 'success',
-            data: { ...item, tags },
+            data: { id, is_archived: newArchived },
         });
     } catch (error) {
         console.error('[收藏项] 切换归档失败:', error);

@@ -1,21 +1,28 @@
 /**
  * DeepReadProgress 组件 - 精读队列进度浮条
- * 底部固定浮条，显示当前精读进度、暂停/继续/取消操作
- * 可展开显示完整队列列表
  */
 
 import { useState } from 'react';
 import { useDeepReadStore, type DeepReadTask } from '../store/deepReadStore';
 import './DeepReadProgress.css';
 
-/**
- * DeepReadProgress 精读进度浮条
- * 仅在有队列任务时显示
- */
+function phaseLabel(task: DeepReadTask): string {
+    if (task.status === 'processing') {
+        return task.phase === 'summarizing' ? '生成摘要' : '抓取正文';
+    }
+    return {
+        pending: '等待中',
+        processing: '精读中',
+        done: '已完成',
+        error: '失败',
+    }[task.status];
+}
+
 export default function DeepReadProgress() {
     const tasks = useDeepReadStore((s) => s.tasks);
     const currentTask = useDeepReadStore((s) => s.currentTask);
     const paused = useDeepReadStore((s) => s.paused);
+    const completedCount = useDeepReadStore((s) => s.completedCount);
     const startProcessing = useDeepReadStore((s) => s.startProcessing);
     const pause = useDeepReadStore((s) => s.pause);
     const cancelTask = useDeepReadStore((s) => s.cancelTask);
@@ -24,14 +31,11 @@ export default function DeepReadProgress() {
     const [expanded, setExpanded] = useState(false);
 
     const pendingCount = tasks.filter((t) => t.status === 'pending').length;
-    const doneCount = tasks.filter((t) => t.status === 'done').length;
     const errorCount = tasks.filter((t) => t.status === 'error').length;
     const activeCount = pendingCount + (currentTask ? 1 : 0);
+    const total = activeCount + completedCount + errorCount;
 
-    // 无活动任务时不显示
-    if (activeCount === 0 && errorCount === 0) return null;
-
-    const total = activeCount + doneCount + errorCount;
+    if (activeCount === 0 && errorCount === 0 && completedCount === 0) return null;
 
     return (
         <div className="deep-read-progress">
@@ -40,17 +44,18 @@ export default function DeepReadProgress() {
                     <div className="deep-read-progress-info">
                         {paused ? (
                             <span className="deep-read-progress-paused">
-                                精读已暂停 · {pendingCount}项待处理
+                                精读已暂停 · {pendingCount} 项待处理
                             </span>
                         ) : currentTask ? (
                             <span className="deep-read-progress-active">
-                                精读中 {doneCount + 1}/{total} · 「{currentTask.title.length > 20
+                                {phaseLabel(currentTask)} {completedCount + 1}/{total} · 「
+                                {currentTask.title.length > 20
                                     ? currentTask.title.slice(0, 20) + '...'
                                     : currentTask.title}」
                             </span>
                         ) : (
                             <span className="deep-read-progress-active">
-                                精读队列 {activeCount}项
+                                精读队列 · 已完成 {completedCount} · 待处理 {pendingCount}
                             </span>
                         )}
                     </div>
@@ -91,7 +96,7 @@ export default function DeepReadProgress() {
                 <div className="deep-read-progress-expanded">
                     <div className="deep-read-progress-header">
                         <span className="deep-read-progress-title">
-                            精读队列 · 完成{doneCount}项 · 待处理{pendingCount}项 · 失败{errorCount}项
+                            精读队列 · 已完成 {completedCount} · 待处理 {pendingCount} · 失败 {errorCount}
                         </span>
                         <button
                             className="deep-read-progress-collapse-btn"
@@ -133,9 +138,6 @@ export default function DeepReadProgress() {
     );
 }
 
-/**
- * 队列中的单个任务条目
- */
 function TaskItem({
     task,
     isCurrent,
@@ -147,13 +149,6 @@ function TaskItem({
     onCancel: (id: string) => void;
     onRetry: (id: string) => void;
 }) {
-    const statusLabel = {
-        pending: '等待中',
-        processing: '精读中',
-        done: '已完成',
-        error: '失败',
-    }[task.status];
-
     const statusClass = {
         pending: 'status-pending',
         processing: 'status-processing',
@@ -164,10 +159,8 @@ function TaskItem({
     return (
         <div className={`deep-read-task-item ${isCurrent ? 'current' : ''}`}>
             <span className={`deep-read-task-status ${statusClass}`}>
-                {task.status === 'processing' && (
-                    <span className="deep-read-spinner" />
-                )}
-                {statusLabel}
+                {task.status === 'processing' && <span className="deep-read-spinner" />}
+                {phaseLabel(task)}
             </span>
             <span className="deep-read-task-title" title={task.title}>
                 {task.title.length > 30 ? task.title.slice(0, 30) + '...' : task.title}

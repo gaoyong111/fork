@@ -332,8 +332,6 @@
     background-color: var(--color-bg);
     padding: var(--spacing-lg);
     border-radius: var(--radius-md);
-    max-height: 500px;
-    overflow-y: auto;
 }
 
 .detail-content-rich {
@@ -344,8 +342,6 @@
     background-color: var(--color-bg);
     padding: var(--spacing-lg);
     border-radius: var(--radius-md);
-    max-height: 600px;
-    overflow-y: auto;
 }
 
 .detail-content-rich h3 {
@@ -372,4 +368,82 @@
 .detail-content-rich strong {
     font-weight: 600;
     color: var(--color-text-primary);
+}
+
+/* 内容区域标题 + 模式切换 */
+.detail-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-sm);
+}
+
+.detail-section-header .detail-section-title {
+    margin-bottom: 0;
+}
+
+.detail-section-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.detail-summary-mode-switch,
+.detail-content-mode-switch {
+    display: flex;
+    gap: 2px;
+    background-color: var(--color-bg);
+    border-radius: var(--radius-md);
+    padding: 2px;
+}
+
+.mode-btn {
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+    transition: all var(--transition-fast);
+}
+
+.mode-btn:hover {
+    color: var(--color-text-secondary);
+}
+
+.mode-btn.active {
+    background-color: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+/* 原文展示区 */
+.detail-raw-content {
+    line-height: 1.8;
+    color: var(--color-text-secondary);
+}
+
+.detail-raw-content p {
+    margin-bottom: var(--spacing-md);
+    text-indent: 0;
+}
+
+.detail-raw-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-md);
+    margin: var(--spacing-md) 0;
+}
+
+.detail-raw-content h1,
+.detail-raw-content h2,
+.detail-raw-content h3,
+.detail-raw-content h4 {
+    color: var(--color-text-primary);
+    margin: var(--spacing-lg) 0 var(--spacing-sm);
+}
+
+.detail-raw-content blockquote {
+    border-left: 3px solid var(--color-primary-light);
+    padding-left: var(--spacing-md);
+    color: var(--color-text-secondary);
+    margin: var(--spacing-md) 0;
 }

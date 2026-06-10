@@ -4,9 +4,16 @@
  * 移动端显示快速收藏浮动按钮（FAB）
  */
 
-import { useState, useCallback, type ReactNode } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, type ReactNode } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts';
+import {
+    applyScrollPosition,
+    getScrollKey,
+    isListRoute,
+    saveScrollPosition,
+} from '../hooks/useScrollRestoration';
+import { LayoutScrollContext } from '../contexts/LayoutScrollContext';
 import './Layout.css';
 
 interface LayoutProps {
@@ -29,6 +36,28 @@ interface LayoutProps {
 export default function Layout({ sidebar, content, onQuickSave }: LayoutProps) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
+    const contentRef = useRef<HTMLDivElement>(null);
+    const scrollKey = getScrollKey(location.pathname, location.search);
+    const listRoute = isListRoute(location.pathname);
+
+    /** 非列表页：外层 layout-content 滚动并记忆位置 */
+    useEffect(() => {
+        if (listRoute) return;
+        const el = contentRef.current;
+        if (!el) return;
+
+        const onScroll = () => saveScrollPosition(scrollKey, el.scrollTop);
+        el.addEventListener('scroll', onScroll, { passive: true });
+        return () => el.removeEventListener('scroll', onScroll);
+    }, [scrollKey, listRoute]);
+
+    useLayoutEffect(() => {
+        if (listRoute) return;
+        const el = contentRef.current;
+        if (!el) return;
+        applyScrollPosition(el, scrollKey);
+    }, [scrollKey, listRoute]);
 
     /**
      * N 键：跳转到新建收藏页
@@ -133,8 +162,13 @@ export default function Layout({ sidebar, content, onQuickSave }: LayoutProps) {
                     </div>
                 </header>
 
-                <div className="layout-content">
-                    {content}
+                <div
+                    className={`layout-content${listRoute ? ' layout-content--list' : ''}`}
+                    ref={contentRef}
+                >
+                    <LayoutScrollContext.Provider value={contentRef}>
+                        {content}
+                    </LayoutScrollContext.Provider>
                 </div>
             </main>
 

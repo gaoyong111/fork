@@ -1,16 +1,22 @@
 import type {
     AiConfig,
+    AppPreferences,
+    BackupRecord,
     Collection,
     CreateCollectionParams,
     CreateFolderParams,
     CreateTagParams,
+    DeepReadOptions,
+    DeepReadResult,
     Folder,
     GetCollectionsParams,
     ImportResult,
     MetadataResult,
+    MoveCollectionResult,
     PaginatedData,
     SearchParams,
     SearchResultItem,
+    StorageInfo,
     Tag,
     UpdateCollectionParams,
     UpdateFolderParams,
@@ -113,15 +119,23 @@ export class TauriApi extends FavoritesApi {
     }
 
     async toggleFavorite(id: string): Promise<{ id: string; isFavorite: boolean }> {
-        return this.call<{ id: string; isFavorite: boolean }>('toggle_favorite', { id });
+        const result = await this.call<{ id: string; isFavorite: boolean }>('toggle_favorite', { id });
+        return {
+            id: result.id,
+            isFavorite: result.isFavorite === true || (result.isFavorite as unknown) === 1,
+        };
     }
 
-    async moveCollection(id: string, folderId: string): Promise<{ id: string; folderId: string }> {
-        return this.call<{ id: string; folderId: string }>('move_collection', { id, folderId });
+    async moveCollection(id: string, folderId: string | null): Promise<MoveCollectionResult> {
+        return this.call<MoveCollectionResult>('move_collection', { id, folderId });
     }
 
     async toggleArchive(id: string): Promise<{ id: string; isArchived: boolean }> {
-        return this.call<{ id: string; isArchived: boolean }>('toggle_archive', { id });
+        const result = await this.call<{ id: string; isArchived: boolean }>('toggle_archive', { id });
+        return {
+            id: result.id,
+            isArchived: result.isArchived === true || (result.isArchived as unknown) === 1,
+        };
     }
 
     async incrementReadCount(id: string): Promise<{ id: string; readCount: number }> {
@@ -173,6 +187,10 @@ export class TauriApi extends FavoritesApi {
     // ==================== 文件上传 ====================
 
     async uploadFile(file: File, folderId?: string): Promise<UploadResult> {
+        const MAX_BYTES = 50 * 1024 * 1024;
+        if (file.size > MAX_BYTES) {
+            throw new Error('文件大小不能超过 50MB');
+        }
         const fileData = await fileToArrayBuffer(file);
         return this.call<UploadResult>('upload_file', {
             fileName: file.name,
@@ -181,6 +199,23 @@ export class TauriApi extends FavoritesApi {
             fileSize: file.size,
             folderId: folderId ?? null,
         });
+    }
+
+    async uploadFileFromDialog(folderId?: string): Promise<UploadResult> {
+        return this.call<UploadResult>('upload_file_dialog', {
+            folderId: folderId ?? null,
+        });
+    }
+
+    async uploadFileFromPath(path: string, folderId?: string | null): Promise<UploadResult> {
+        return this.call<UploadResult>('upload_file_from_path', {
+            sourcePath: path,
+            folderId: folderId ?? null,
+        });
+    }
+
+    async openFile(collectionId: string): Promise<void> {
+        return this.call<void>('open_file', { collectionId });
     }
 
     // ==================== 回收站 ====================
@@ -213,26 +248,39 @@ export class TauriApi extends FavoritesApi {
 
     // ==================== AI ====================
 
-    async extractSummary(url: string, options?: { signal?: AbortSignal }): Promise<{ summary: string }> {
+    async deepRead(url: string, options?: DeepReadOptions): Promise<DeepReadResult> {
         if (options?.signal?.aborted) {
             throw new DOMException('The operation was aborted', 'AbortError');
         }
 
-        const invokePromise = this.call<{ summary: string }>('extract_summary', { url });
+        const invokePromise = this.call<DeepReadResult>('deep_read', {
+            url,
+            rawContent: options?.rawContent ?? null,
+            refetch: options?.refetch ?? null,
+            templateType: options?.templateType ?? null,
+            userDirection: options?.userDirection ?? null,
+            previousSummary: options?.previousSummary ?? null,
+            summaryMode: options?.summaryMode ?? null,
+        });
 
         if (!options?.signal) {
             return invokePromise;
         }
 
-        // Tauri IPC 无法真正取消 Rust 端请求，
-        // 但通过 wrapper Promise 在 abort 时立即 reject，让前端不再等待
-        return new Promise<{ summary: string }>((resolve, reject) => {
-            const onAbort = () => reject(new DOMException('The operation was aborted', 'AbortError'));
+        return new Promise<DeepReadResult>((resolve, reject) => {
+            const onAbort = () => {
+                void this.cancelDeepRead();
+                reject(new DOMException('The operation was aborted', 'AbortError'));
+            };
             options.signal!.addEventListener('abort', onAbort, { once: true });
 
             invokePromise
                 .then((result) => {
                     options.signal!.removeEventListener('abort', onAbort);
+                    if (options.signal!.aborted) {
+                        reject(new DOMException('The operation was aborted', 'AbortError'));
+                        return;
+                    }
                     resolve(result);
                 })
                 .catch((err) => {
@@ -242,15 +290,18 @@ export class TauriApi extends FavoritesApi {
         });
     }
 
-    // ==================== 导入/导出 ====================
-
-    async exportJSON(): Promise<void> {
-        // Tauri 模式：Rust 端用原生对话框选保存路径 + 直接写文件
-        return this.call<void>('export_json');
+    async cancelDeepRead(): Promise<void> {
+        return this.call<void>('cancel_deep_read');
     }
 
-    async exportHTML(): Promise<void> {
-        return this.call<void>('export_html');
+    // ==================== 导入/导出 ====================
+
+    async exportJSON(): Promise<string> {
+        return this.call<string>('export_json');
+    }
+
+    async exportHTML(): Promise<string> {
+        return this.call<string>('export_html');
     }
 
     async importJSON(file: File): Promise<ImportResult> {
@@ -271,8 +322,8 @@ export class TauriApi extends FavoritesApi {
 
     // ==================== 数据管理 ====================
 
-    async getStorageInfo(): Promise<{ dataDir: string; dbSize: number; uploadsSize: number }> {
-        return this.call<{ dataDir: string; dbSize: number; uploadsSize: number }>('get_storage_info');
+    async getStorageInfo(): Promise<StorageInfo> {
+        return this.call<StorageInfo>('get_storage_info');
     }
 
     async backupDatabase(): Promise<string> {
@@ -283,8 +334,8 @@ export class TauriApi extends FavoritesApi {
         return this.call<void>('restore_database', { backupPath });
     }
 
-    async listBackups(): Promise<Array<{ name: string; path: string; size: number; modifiedAt: string }>> {
-        return this.call<Array<{ name: string; path: string; size: number; modifiedAt: string }>>('list_backups');
+    async listBackups(): Promise<BackupRecord[]> {
+        return this.call<BackupRecord[]>('list_backups');
     }
 
     async deleteBackup(path: string): Promise<void> {
@@ -307,5 +358,13 @@ export class TauriApi extends FavoritesApi {
 
     async testAiConnection(config?: AiConfig): Promise<{ success: boolean; model: string; message: string }> {
         return this.call<{ success: boolean; model: string; message: string }>('test_ai_connection', { config: config ?? null });
+    }
+
+    async getAppPreferences(): Promise<AppPreferences> {
+        return this.call<AppPreferences>('get_app_preferences');
+    }
+
+    async setAppPreferences(preferences: AppPreferences): Promise<AppPreferences> {
+        return this.call<AppPreferences>('set_app_preferences', { preferences });
     }
 }

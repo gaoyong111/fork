@@ -9,6 +9,7 @@ import * as api from '../services/api';
 import { useFolderStore, type FolderState } from '../store/folderStore';
 import { useTagStore, type TagState } from '../store/tagStore';
 import { useDeepReadStore } from '../store/deepReadStore';
+import { useAppSettingsStore } from '../store/appSettingsStore';
 import type { ClipboardDetectResult } from '../hooks/useClipboardDetector';
 import type { Folder } from '../types';
 import TagPopover from './TagPopover';
@@ -190,12 +191,14 @@ export default function QuickSaveModal({
                 tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
             });
 
-            // 链接类型自动入队精读
-            if (result?.url) {
+            // 链接类型按设置自动入队精读
+            if (result?.url && useAppSettingsStore.getState().isAutoDeepReadEnabled()) {
                 useDeepReadStore.getState().enqueue(
                     result.id,
                     result.url,
-                    result.title
+                    result.title,
+                    0,
+                    { summaryMode: useAppSettingsStore.getState().getDefaultSummaryMode() },
                 );
             }
 
