@@ -413,11 +413,13 @@ export class HttpApi extends FavoritesApi {
             body: JSON.stringify({
                 url,
                 rawContent: options?.rawContent,
+                images: options?.images,
                 refetch: options?.refetch,
                 templateType: options?.templateType,
                 userDirection: options?.userDirection,
                 previousSummary: options?.previousSummary,
                 summaryMode: options?.summaryMode,
+                sourceMode: options?.sourceMode,
             }),
             signal: options?.signal,
         });

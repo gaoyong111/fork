@@ -11,6 +11,29 @@ import { useFolderStore } from './folderStore';
 import { useTagStore } from './tagStore';
 
 const UNDO_EXPIRE_MS = 5000;
+const VIEW_MODE_STORAGE_KEY = 'favorites-view-mode';
+const CARD_SIZE_STORAGE_KEY = 'favorites-card-size';
+
+export type ViewMode = 'grid' | 'list';
+export type CardSize = 'small' | 'medium';
+
+function readStoredViewMode(): ViewMode {
+    try {
+        const value = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+        return value === 'list' ? 'list' : 'grid';
+    } catch {
+        return 'grid';
+    }
+}
+
+function readStoredCardSize(): CardSize {
+    try {
+        const value = localStorage.getItem(CARD_SIZE_STORAGE_KEY);
+        return value === 'small' ? 'small' : 'medium';
+    } catch {
+        return 'medium';
+    }
+}
 
 export interface UndoAction {
     id: string;
@@ -36,7 +59,8 @@ export interface CollectionState {
     filters: CollectionFilters;
     page: number;
     pageSize: number;
-    viewMode: 'grid' | 'list';
+    viewMode: ViewMode;
+    cardSize: CardSize;
     loading: boolean;
     initialized: boolean;
     pendingUndos: UndoAction[];
@@ -45,7 +69,8 @@ export interface CollectionState {
     invalidate: () => Promise<void>;
     setFilters: (filters: Partial<CollectionFilters>) => void;
     setPage: (page: number) => void;
-    setViewMode: (mode: 'grid' | 'list') => void;
+    setViewMode: (mode: ViewMode) => void;
+    setCardSize: (size: CardSize) => void;
     searchCollections: (query: string) => Promise<SearchResultItem[]>;
 
     optimisticDelete: (id: string) => void;
@@ -53,7 +78,7 @@ export interface CollectionState {
     optimisticToggleArchive: (id: string) => Promise<{ id: string; isArchived: boolean }>;
     optimisticMove: (id: string, folderId: string | null) => Promise<void>;
     undo: (undoId: string) => void;
-    updateContent: (collectionId: string, content: string, rawContent?: string) => void;
+    updateContent: (collectionId: string, content: string, rawContent?: string, images?: string) => void;
     updateSummary: (collectionId: string, collection: Collection | undefined) => void;
 }
 
@@ -122,7 +147,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     },
     page: 1,
     pageSize: 20,
-    viewMode: 'grid',
+    viewMode: readStoredViewMode(),
+    cardSize: readStoredCardSize(),
     loading: false,
     initialized: false,
     pendingUndos: [],
@@ -178,8 +204,22 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         get().fetchCollections({ page });
     },
 
-    setViewMode: (mode: 'grid' | 'list') => {
+    setViewMode: (mode: ViewMode) => {
         set({ viewMode: mode });
+        try {
+            localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
+        } catch {
+            // ignore storage errors
+        }
+    },
+
+    setCardSize: (size: CardSize) => {
+        set({ cardSize: size });
+        try {
+            localStorage.setItem(CARD_SIZE_STORAGE_KEY, size);
+        } catch {
+            // ignore storage errors
+        }
     },
 
     searchCollections: async (query: string) => {
@@ -344,11 +384,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         }
     },
 
-    updateContent: (collectionId: string, content: string, rawContent?: string) => {
+    updateContent: (collectionId: string, content: string, rawContent?: string, images?: string) => {
         const state = get();
         set({
             collections: state.collections.map((c) =>
-                c.id === collectionId ? { ...c, content, ...(rawContent !== undefined ? { rawContent } : {}) } : c
+                c.id === collectionId ? {
+                    ...c,
+                    content,
+                    ...(rawContent !== undefined ? { rawContent } : {}),
+                    ...(images !== undefined ? { images } : {}),
+                } : c
             ),
         });
     },

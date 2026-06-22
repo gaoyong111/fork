@@ -4,7 +4,7 @@
  */
 
 const COLLECTION_KEYS = [
-    'id', 'title', 'description', 'url', 'type', 'content', 'rawContent',
+    'id', 'title', 'description', 'url', 'type', 'content', 'rawContent', 'images',
     'thumbnailUrl', 'filePath', 'folderId', 'isFavorite', 'isArchived',
     'readCount', 'createdAt', 'updatedAt', 'tags',
 ] as const;

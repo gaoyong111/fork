@@ -1,4 +1,5 @@
 use crate::db::{models::*, get_db};
+use crate::db::queries::folder::get_folder_scope_ids;
 use crate::commands::collection_cmds::{batch_load_tags, batch_load_folder_brief, collection_from_row, COLLECTION_SELECT_FIELDS};
 use rusqlite::params;
 
@@ -67,8 +68,12 @@ pub fn search_collections(params: SearchParams) -> Result<PaginatedData<SearchRe
         filter_params.push(Box::new(rtype.clone()));
     }
     if let Some(ref folder_id) = params.folder_id {
-        conditions.push("folder_id = ?".to_string());
-        filter_params.push(Box::new(folder_id.clone()));
+        let scope_ids = get_folder_scope_ids(&db, folder_id).map_err(|e| e.to_string())?;
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        conditions.push(format!("folder_id IN ({})", placeholders));
+        for id in scope_ids {
+            filter_params.push(Box::new(id));
+        }
     }
     if let Some(ref tag_id) = params.tag_id {
         conditions.push("id IN (SELECT collection_id FROM collection_tags WHERE tag_id = ?)".to_string());

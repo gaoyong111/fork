@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database/init';
+import { getAllDescendantFolderIds } from '../utils/folderScope';
 
 const router = Router();
 
@@ -222,9 +223,8 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
             return;
         }
 
-        // 收集所有子文件夹 ID（包括自身）
-        const allFolderIds = getAllDescendantFolderIds(db, id);
-        allFolderIds.push(id);
+        // 收集该文件夹及所有子文件夹 ID
+        const allFolderIds = [id, ...getAllDescendantFolderIds(db, id)];
 
         // 将这些文件夹下的收藏项移至未分类
         const placeholders = allFolderIds.map(() => '?').join(', ');
@@ -250,24 +250,5 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
         });
     }
 });
-
-/**
- * 递归获取所有后代文件夹 ID
- * @param database - 数据库实例
- * @param parentId - 父文件夹 ID
- * @returns 后代文件夹 ID 列表
- */
-function getAllDescendantFolderIds(database: ReturnType<typeof getDb>, parentId: string): string[] {
-    const children = database.prepare(
-        'SELECT id FROM folders WHERE parent_id = ?'
-    ).all(parentId) as { id: string }[];
-
-    const ids: string[] = [];
-    for (const child of children) {
-        ids.push(child.id);
-        ids.push(...getAllDescendantFolderIds(database, child.id));
-    }
-    return ids;
-}
 
 export default router;

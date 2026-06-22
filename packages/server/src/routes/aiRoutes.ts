@@ -4,6 +4,8 @@
  */
 
 import { Router, Request, Response } from 'express';
+import path from 'path';
+import fs from 'fs';
 import { validateExtractedContent } from '../../../shared/src/ai/contentQuality';
 import {
     deepReadAiConfig,
@@ -13,12 +15,20 @@ import {
     getRefineSystemPrompt,
     buildRefineUserMessage,
     buildDefaultUserMessage,
+    getCompressPrompt,
+    getCompressMaxTokens,
+    buildCompressUserMessage,
     prepareContentForAi,
+    truncateForAi,
     type DeepReadTemplateType,
 } from '../../../shared/src/ai/deepRead';
-import type { SummaryMode } from '../../../shared/src/types';
-import { extractArticleHtml } from '../ai/contentExtract';
+import type { SummaryMode, ArticleImage } from '../../../shared/src/types';
+import { extractArticleHtml, extractArticleHtmlWithImages } from '../ai/contentExtract';
 import { isWechatArticleUrl, WECHAT_ARTICLE_USER_AGENT } from '../../../shared/src/metadata/wechatExtract';
+import {
+    extractTitleFromPageHtml,
+    extractTitleFromRawContent,
+} from '../../../shared/src/metadata/collectionMeta';
 
 const router = Router();
 
@@ -35,15 +45,20 @@ const USER_AGENT =
 const CHUNK_THRESHOLD = deepReadAiConfig.chunkThreshold;
 const CHUNK_SIZE = deepReadAiConfig.chunkSize;
 const CHUNK_CONCURRENCY = Math.max(1, deepReadAiConfig.chunkConcurrency ?? 3);
+const MAX_CHUNKS = deepReadAiConfig.maxChunks ?? 5;
+const MAX_HTML_SIZE = deepReadAiConfig.maxHtmlSizeBytes ?? 10485760;
+const MAX_AI_CONTENT_CHARS = deepReadAiConfig.maxAiContentChars ?? 40000;
 
 interface DeepReadRequestBody {
     url?: string;
     rawContent?: string;
+    images?: string;
     refetch?: boolean;
     templateType?: DeepReadTemplateType;
     userDirection?: string;
     previousSummary?: string;
     summaryMode?: SummaryMode;
+    sourceMode?: 'compress';
 }
 
 function resolveSummaryMode(mode?: string): SummaryMode {
@@ -115,6 +130,11 @@ async function chunkedAiProcess(
     }
     if (currentChunk) chunks.push(currentChunk);
 
+    // 超过 chunk 上限时只保留前 maxChunks 个
+    if (chunks.length > MAX_CHUNKS) {
+        chunks.length = MAX_CHUNKS;
+    }
+
     const chunkSummaries: string[] = [];
     for (let i = 0; i < chunks.length; i += CHUNK_CONCURRENCY) {
         const batch = chunks.slice(i, i + CHUNK_CONCURRENCY);
@@ -180,6 +200,7 @@ router.post('/deep-read', async (req: Request, res: Response): Promise<void> => 
     const body = req.body as DeepReadRequestBody;
     const { url, userDirection, previousSummary } = body;
     const existingRaw = body.rawContent;
+    const existingImages = body.images;
     const refetch = body.refetch === true;
 
     if (!url || typeof url !== 'string') {
@@ -194,6 +215,7 @@ router.post('/deep-read', async (req: Request, res: Response): Promise<void> => 
 
     try {
         let rawContent: string;
+        let imagesJson: string;
         let pageHtml: string | undefined;
 
         if (!refetch && typeof existingRaw === 'string' && existingRaw.trim()) {
@@ -203,25 +225,82 @@ router.post('/deep-read', async (req: Request, res: Response): Promise<void> => 
                 return;
             }
             rawContent = existingRaw.trim();
+            imagesJson = existingImages || '';
         } else {
             pageHtml = await fetchPageHtml(url);
-            rawContent = extractArticleHtml(pageHtml, url);
+
+            if (pageHtml.length > MAX_HTML_SIZE) {
+                res.json({ code: -1, message: '页面体积过大（>10MB），无法精读' });
+                return;
+            }
+
+            const images: ArticleImage[] = [];
+            const { html: extractedHtml } = extractArticleHtmlWithImages(pageHtml, url, images);
+            rawContent = extractedHtml;
 
             const quality = validateExtractedContent(rawContent);
             if (!quality.ok) {
                 res.json({ code: -1, message: quality.reason || '无法提取页面内容' });
                 return;
             }
+            imagesJson = JSON.stringify(images);
+        }
+
+        // 下载图片到本地
+        let imagesArr: ArticleImage[] = imagesJson ? JSON.parse(imagesJson) : [];
+        if (imagesArr.length > 0 && imagesArr.some((img) => !img.localPath)) {
+            const imgDir = path.join(process.cwd(), 'uploads', 'img');
+            fs.mkdirSync(imgDir, { recursive: true });
+
+            for (const img of imagesArr) {
+                if (img.localPath) continue;
+                if (!img.src) continue;
+
+                const isWechatImg = img.src.includes('mmbiz.qpic.cn') || img.src.includes('wx.qlogo.cn');
+                const imgHeaders: Record<string, string> = {
+                    'User-Agent': WECHAT_ARTICLE_USER_AGENT,
+                    'Accept': 'image/*,*/*;q=0.8',
+                };
+                if (isWechatImg) {
+                    imgHeaders['Referer'] = 'https://mp.weixin.qq.com/';
+                }
+
+                try {
+                    const imgResp = await fetch(img.src, { headers: imgHeaders, redirect: 'follow' });
+                    if (imgResp.ok) {
+                        const buf = Buffer.from(await imgResp.arrayBuffer());
+                        const lastSegment = img.src.split('/').pop() || 'unknown';
+                        const safeName = lastSegment.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 12);
+                        const filename = `img_${img.id}_${safeName}.jpg`;
+                        const filePath = path.join(imgDir, filename);
+                        fs.writeFileSync(filePath, buf);
+                        img.localPath = `uploads/img/${filename}`;
+                    }
+                } catch {
+                    // 下载失败，保留原始 src 兜底
+                }
+            }
+            imagesJson = JSON.stringify(imagesArr);
         }
 
         const templateType = body.templateType
             ?? detectTemplateType(url, pageHtml);
 
-        const prepared = prepareContentForAi(rawContent);
+        const prepared = prepareContentForAi(rawContent, imagesJson);
         const summaryMode = resolveSummaryMode(body.summaryMode);
 
+        const pageTitle = pageHtml
+            ? extractTitleFromPageHtml(pageHtml)
+            : extractTitleFromRawContent(rawContent);
+
         let summary: string;
-        if (typeof userDirection === 'string' && userDirection.trim()) {
+        if (body.sourceMode === 'compress') {
+            summary = await callAiApi(
+                getCompressPrompt(),
+                buildCompressUserMessage(prepared),
+                getCompressMaxTokens(),
+            );
+        } else if (typeof userDirection === 'string' && userDirection.trim()) {
             summary = await refineAiProcess(
                 prepared,
                 typeof previousSummary === 'string' ? previousSummary : '',
@@ -235,7 +314,7 @@ router.post('/deep-read', async (req: Request, res: Response): Promise<void> => 
 
         res.json({
             code: 0,
-            data: { rawContent, summary, templateType },
+            data: { rawContent, images: imagesJson, summary, templateType, pageTitle: pageTitle || undefined },
         });
     } catch (err) {
         console.error('AI 精读失败:', err);

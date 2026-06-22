@@ -55,6 +55,8 @@ pub struct Collection {
     pub summary_mode: Option<String>,
     #[serde(rename = "rawContent")]
     pub raw_content: Option<String>,
+    #[serde(rename = "images")]
+    pub images: Option<String>,
     #[serde(rename = "thumbnailUrl")]
     pub cover_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -137,6 +139,7 @@ pub struct UpdateCollectionParams {
     pub rtype: Option<String>,
     pub content: Option<String>,
     pub raw_content: Option<String>,
+    pub images: Option<String>,
     #[serde(rename = "contentBrief")]
     pub content_brief: Option<String>,
     #[serde(rename = "contentDetailed")]

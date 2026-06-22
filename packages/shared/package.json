@@ -15,6 +15,7 @@
         "./ai/contentQuality": "./src/ai/contentQuality.ts",
         "./ai/deepReadErrors": "./src/ai/deepReadErrors.ts",
         "./metadata/wechatExtract": "./src/metadata/wechatExtract.ts",
+        "./metadata/collectionMeta": "./src/metadata/collectionMeta.ts",
         "./contracts/apiShapes": "./src/contracts/apiShapes.ts"
     },
     "devDependencies": {

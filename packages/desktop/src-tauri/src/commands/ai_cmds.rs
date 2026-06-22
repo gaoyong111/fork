@@ -1,22 +1,35 @@
 use reqwest;
 use scraper::{Html, Selector, ElementRef};
 use crate::db::{ai_config, get_db, settings::read_ai_config_tuple};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use once_cell::sync::Lazy;
 use tokio::task;
+
+/** 分离后的图片信息 */
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ArticleImage {
+    pub id: i32,
+    pub src: String,
+    pub alt: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_path: Option<String>,
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeepReadArgs {
     url: String,
     raw_content: Option<String>,
+    images: Option<String>,
     refetch: Option<bool>,
     template_type: Option<String>,
     user_direction: Option<String>,
     previous_summary: Option<String>,
     summary_mode: Option<String>,
+    source_mode: Option<String>,
 }
 
 fn resolve_summary_mode(mode: Option<&String>) -> String {
@@ -68,6 +81,12 @@ fn is_wechat_url(url: &str) -> bool {
     url.contains("mp.weixin.qq.com")
 }
 
+fn get_app_data_dir() -> std::path::PathBuf {
+    dirs::data_local_dir()
+        .expect("无法确定应用数据目录")
+        .join("favorites")
+}
+
 /** 将 reqwest 错误分类为用户可读的中文提示 */
 fn classify_reqwest_error(err: &reqwest::Error) -> String {
     if err.is_timeout() {
@@ -89,9 +108,9 @@ fn classify_reqwest_error(err: &reqwest::Error) -> String {
 }
 
 /**
- * 从 HTML 提取保留格式与图片的原文
+ * 从 HTML 提取正文，图文分离：图片用 [图N] 占位符，图片信息存入 images 数组
  */
-fn extract_article_html(html: &str, page_url: &str, is_wechat: bool) -> String {
+fn extract_article_html(html: &str, page_url: &str, is_wechat: bool) -> (String, Vec<ArticleImage>) {
     let noise_tags = ["script", "style", "noscript", "nav", "footer", "header", "iframe"];
     let mut cleaned_html = html.to_string();
     for tag in &noise_tags {
@@ -132,13 +151,16 @@ fn extract_article_html(html: &str, page_url: &str, is_wechat: bool) -> String {
 
     let container = match container {
         Some(c) => c,
-        None => return String::new(),
+        None => return (String::new(), Vec::new()),
     };
 
     let mut parts: Vec<String> = Vec::new();
+    let mut images: Vec<ArticleImage> = Vec::new();
+    let mut img_index: i32 = 0;
+
     if let Some(sel) = block_sel {
         for el in container.select(&sel) {
-            if let Some(html_part) = element_to_html(&el, page_url) {
+            if let Some(html_part) = element_to_html_with_images(&el, page_url, &mut images, &mut img_index) {
                 parts.push(html_part);
             }
         }
@@ -148,12 +170,12 @@ fn extract_article_html(html: &str, page_url: &str, is_wechat: bool) -> String {
         let text = container.text().collect::<String>();
         let trimmed = text.split_whitespace().collect::<Vec<_>>().join(" ");
         if trimmed.is_empty() {
-            return String::new();
+            return (String::new(), images);
         }
-        return format!("<p>{}</p>", html_escape(&trimmed));
+        return (format!("<p>{}</p>", html_escape(&trimmed)), images);
     }
 
-    parts.join("\n")
+    (parts.join("\n"), images)
 }
 
 fn html_escape(text: &str) -> String {
@@ -175,7 +197,12 @@ fn resolve_url(raw: &str, base: &str) -> Option<String> {
     None
 }
 
-fn element_to_html(el: &ElementRef, page_url: &str) -> Option<String> {
+fn element_to_html_with_images(
+    el: &ElementRef,
+    page_url: &str,
+    images: &mut Vec<ArticleImage>,
+    img_index: &mut i32,
+) -> Option<String> {
     let tag = el.value().name();
     match tag {
         "img" => {
@@ -184,7 +211,10 @@ fn element_to_html(el: &ElementRef, page_url: &str) -> Option<String> {
                 .or_else(|| el.value().attr("src"))?;
             let resolved = resolve_url(src, page_url)?;
             let alt = el.value().attr("alt").unwrap_or("配图");
-            Some(format!("<img src=\"{}\" alt=\"{}\" />", html_escape(&resolved), html_escape(alt)))
+            let id = *img_index + 1;
+            *img_index = id;
+            images.push(ArticleImage { id, src: resolved.clone(), alt: alt.to_string(), local_path: None });
+            Some(format!("<p>[图{}]</p>", id))
         }
         "hr" => Some("<hr />".to_string()),
         "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p" | "blockquote" | "ul" | "ol" | "figure" | "section" => {
@@ -217,21 +247,34 @@ fn content_to_plain_text(content: &str) -> String {
     content.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn prepare_content_for_ai(content: &str) -> String {
+fn prepare_content_for_ai(content: &str, images_json: Option<&str>) -> String {
     if !is_html_content(content) {
         return content.trim().to_string();
     }
     let document = Html::parse_document(content);
     let sel = Selector::parse("p, h1, h2, h3, h4, h5, h6, li, blockquote, img, hr").ok();
+
+    // 解析 images JSON 用于占位符替换
+    let images: Vec<ArticleImage> = images_json
+        .and_then(|j| serde_json::from_str(j).ok())
+        .unwrap_or_default();
+
     let mut lines: Vec<String> = Vec::new();
     if let Some(selector) = sel {
         for el in document.select(&selector) {
             let tag = el.value().name();
             match tag {
                 "img" => {
+                    // 内嵌 <img> 标签（老数据兼容）：尝试从 images 替换
                     let src = el.value().attr("src").unwrap_or("");
                     let alt = el.value().attr("alt").unwrap_or("配图");
-                    lines.push(format!("[图片: {} ({})]", alt, src));
+                    // 检查是否有匹配的 [图N] 占位符
+                    let matched = images.iter().find(|img| img.src == src);
+                    if let Some(img) = matched {
+                        lines.push(format!("[图{}: {}]", img.id, img.alt));
+                    } else {
+                        lines.push(format!("[图片: {}]", alt));
+                    }
                 }
                 "hr" => lines.push("---".to_string()),
                 t if t.starts_with('h') && t.len() == 2 => {
@@ -250,7 +293,9 @@ fn prepare_content_for_ai(content: &str) -> String {
                 _ => {
                     let text = el.text().collect::<String>().trim().to_string();
                     if !text.is_empty() {
-                        lines.push(text);
+                        // 替换 [图N] 占位符为 [图N: alt]
+                        let enriched = enrich_image_placeholders(&text, &images);
+                        lines.push(enriched);
                         lines.push(String::new());
                     }
                 }
@@ -260,7 +305,77 @@ fn prepare_content_for_ai(content: &str) -> String {
     if lines.is_empty() {
         return content_to_plain_text(content);
     }
-    lines.join("\n")
+    let joined = lines.join("\n");
+    truncate_for_ai(&joined, ai_config::max_ai_content_chars())
+}
+
+/** 将 [图N] 占位符替换为 [图N: alt]，便于 AI 理解图片内容 */
+fn enrich_image_placeholders(text: &str, images: &[ArticleImage]) -> String {
+    let mut result = text.to_string();
+    for img in images {
+        let placeholder = format!("[图{}]", img.id);
+        let enriched = format!("[图{}: {}]", img.id, img.alt);
+        result = result.replace(&placeholder, &enriched);
+    }
+    result
+}
+
+/** 纯文本层面智能截断：保留前60%+后40%，中间标记省略 */
+fn truncate_for_ai(content: &str, max_chars: usize) -> String {
+    if content.len() <= max_chars {
+        return content.to_string();
+    }
+
+    let paragraphs: Vec<&str> = content.split("\n\n").collect();
+    let head_budget = (max_chars as f64 * 0.6) as usize;
+    let tail_budget = max_chars - head_budget;
+
+    let mut head_parts: Vec<&str> = Vec::new();
+    let mut head_join_len = 0;
+    for para in &paragraphs {
+        let sep = if head_parts.is_empty() { 0 } else { 2 };
+        if head_join_len + sep + para.len() > head_budget && !head_parts.is_empty() {
+            break;
+        }
+        head_parts.push(para);
+        head_join_len += sep + para.len();
+    }
+
+    let mut tail_parts: Vec<&str> = Vec::new();
+    let mut tail_join_len = 0;
+    let tail_lower_bound = head_parts.len();
+    for i in (tail_lower_bound..paragraphs.len()).rev() {
+        let para = paragraphs[i];
+        let sep = if tail_parts.is_empty() { 0 } else { 2 };
+        if tail_join_len + sep + para.len() > tail_budget && !tail_parts.is_empty() {
+            break;
+        }
+        tail_parts.insert(0, para);
+        tail_join_len += sep + para.len();
+    }
+
+    let middle_start = head_parts.len();
+    let middle_end = paragraphs.len() - tail_parts.len();
+    let omitted = if middle_start >= middle_end {
+        0
+    } else {
+        paragraphs[middle_start..middle_end].join("\n\n").len()
+    };
+
+    if omitted == 0 {
+        let parts: Vec<&str> = if tail_parts.is_empty() {
+            head_parts
+        } else {
+            head_parts.iter().chain(tail_parts.iter()).copied().collect()
+        };
+        return parts.join("\n\n");
+    }
+
+    let marker = format!("\n\n【中间约 {} 字已省略，主要为展开论述与案例细节】\n\n", omitted);
+    let mut result = head_parts.join("\n\n");
+    result.push_str(&marker);
+    result.push_str(&tail_parts.join("\n\n"));
+    result
 }
 
 /**
@@ -377,6 +492,11 @@ async fn chunked_ai_process(
     }
 
     let concurrency = ai_config::chunk_concurrency();
+    let max_chunks = ai_config::max_chunks();
+    if chunks.len() > max_chunks {
+        // 超过上限时只保留前 max_chunks 个 chunk
+        chunks.truncate(max_chunks);
+    }
     let mut results: Vec<String> = Vec::with_capacity(chunks.len());
     let chunk_prompt = ai_config::template_prompt(template_type, "chunk", summary_mode);
     let merge_prompt = ai_config::template_prompt(template_type, "merge", summary_mode);
@@ -458,20 +578,24 @@ fn refine_system_prompt(template_type: &str, summary_mode: &str) -> String {
 pub async fn deep_read(
     url: String,
     raw_content: Option<String>,
+    images: Option<String>,
     refetch: Option<bool>,
     template_type: Option<String>,
     user_direction: Option<String>,
     previous_summary: Option<String>,
     summary_mode: Option<String>,
+    source_mode: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let args = DeepReadArgs {
         url,
         raw_content,
+        images,
         refetch,
         template_type,
         user_direction,
         previous_summary,
         summary_mode,
+        source_mode,
     };
     let cancel_token = register_cancel_token();
     let result = deep_read_inner(&args, &cancel_token).await;
@@ -482,6 +606,42 @@ pub async fn deep_read(
 /** 按字符数安全截取预览文本（避免 UTF-8 字节边界 panic） */
 fn text_preview(text: &str, max_chars: usize) -> String {
     text.chars().take(max_chars).collect()
+}
+
+/** 从页面 HTML 或原文中提取标题 */
+fn extract_page_title(page_html: Option<&str>, raw_content: &str) -> Option<String> {
+    if let Some(html) = page_html {
+        let document = Html::parse_document(html);
+        if let Ok(sel) = Selector::parse(r#"meta[property="og:title"]"#) {
+            if let Some(el) = document.select(&sel).next() {
+                if let Some(title) = el.value().attr("content").map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                    return Some(title.to_string());
+                }
+            }
+        }
+        if let Ok(sel) = Selector::parse("title") {
+            if let Some(el) = document.select(&sel).next() {
+                let title = el.text().collect::<String>().trim().to_string();
+                if !title.is_empty() {
+                    return Some(title);
+                }
+            }
+        }
+    }
+
+    let fragment = Html::parse_fragment(raw_content);
+    for tag in ["h1", "h2"] {
+        if let Ok(sel) = Selector::parse(tag) {
+            if let Some(el) = fragment.select(&sel).next() {
+                let title = el.text().collect::<String>().trim().to_string();
+                if !title.is_empty() {
+                    return Some(title);
+                }
+            }
+        }
+    }
+
+    None
 }
 
 /** 校验提取的正文质量 */
@@ -531,24 +691,27 @@ async fn deep_read_inner(
     }
 
     let mut page_html: Option<String> = None;
-    let raw_content = if !refetch {
+    let mut raw_content = String::new();
+    let mut images_json = args.images.clone().unwrap_or_default();
+
+    if !refetch {
         if let Some(existing) = args.raw_content.as_deref() {
             let trimmed = existing.trim();
             if !trimmed.is_empty() {
                 validate_extracted_content(trimmed)?;
                 check_cancelled(cancel)?;
-                trimmed.to_string()
+                raw_content = trimmed.to_string();
+                // 已有 images 也要带上
+                if args.images.is_none() || args.images.as_deref().unwrap_or("").is_empty() {
+                    images_json = String::new();
+                }
             } else {
                 return Err("原文内容为空，请重新抓取".to_string());
             }
-        } else {
-            String::new()
         }
-    } else {
-        String::new()
-    };
+    }
 
-    let raw_content = if raw_content.is_empty() {
+    if raw_content.is_empty() {
         let wechat = is_wechat_url(url);
 
         let client = reqwest::Client::builder()
@@ -591,24 +754,89 @@ async fn deep_read_inner(
         }
 
         let page_url = url.clone();
-        let extracted = task::spawn_blocking(move || extract_article_html(&html, &page_url, wechat))
+        let (extracted, extracted_images) = task::spawn_blocking(move || extract_article_html(&html, &page_url, wechat))
             .await
             .map_err(|e| e.to_string())?;
 
         validate_extracted_content(&extracted)?;
-        extracted
+        raw_content = extracted;
+        images_json = serde_json::to_string(&extracted_images).unwrap_or_default();
+    }
+
+    // 下载图片到本地（如有新提取的图片）
+    let mut images: Vec<ArticleImage> = if images_json.is_empty() {
+        Vec::new()
     } else {
-        raw_content
+        serde_json::from_str(&images_json).unwrap_or_default()
     };
+
+    if !images.is_empty() && images.iter().any(|img| img.local_path.is_none()) {
+        let img_dir = get_app_data_dir().join("uploads").join("img");
+        std::fs::create_dir_all(&img_dir).ok();
+
+        let img_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .user_agent(WECHAT_USER_AGENT)
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        for img in &mut images {
+            if img.local_path.is_some() { continue; }
+            if img.src.is_empty() { continue; }
+
+            check_cancelled(cancel)?;
+
+            let is_wechat_img = img.src.contains("mmbiz.qpic.cn") || img.src.contains("wx.qlogo.cn");
+            let mut img_request = img_client.get(&img.src)
+                .header("Accept", "image/*,*/*;q=0.8");
+
+            if is_wechat_img {
+                img_request = img_request
+                    .header("Referer", "https://mp.weixin.qq.com/")
+                    .header("Referrer-Policy", "no-referrer");
+            }
+
+            match img_request.send().await {
+                Ok(resp) if resp.status().is_success() => {
+                    let bytes = resp.bytes().await.ok();
+                    if let Some(bytes) = bytes {
+                        let filename = format!("img_{}_{}.jpg", img.id, &img.src.split('/').last().unwrap_or("unknown").chars().take(12).collect::<String>());
+                        let file_path = img_dir.join(&filename);
+                        if std::fs::write(&file_path, &bytes).is_ok() {
+                            // 存绝对路径，前端用 convertFileSrc 转为 asset:// 协议
+                            img.local_path = Some(file_path.to_string_lossy().to_string());
+                        }
+                    }
+                },
+                _ => { /* 下载失败，保留原始 src 兜底 */ }
+            }
+        }
+        images_json = serde_json::to_string(&images).unwrap_or_default();
+    }
 
     let template_type = args.template_type.clone().unwrap_or_else(|| {
         ai_config::detect_template_type(url, page_html.as_deref())
     });
 
-    let prepared = prepare_content_for_ai(&raw_content);
+    let images_ref = if images_json.is_empty() { None } else { Some(images_json.as_str()) };
+    let prepared = prepare_content_for_ai(&raw_content, images_ref);
     let summary_mode = resolve_summary_mode(args.summary_mode.as_ref());
 
-    let summary = if let Some(direction) = args.user_direction.as_deref().filter(|d| !d.trim().is_empty()) {
+    let summary = if args.source_mode.as_deref() == Some("compress") {
+        let user = format!(
+            "请将以下详细摘要压缩为简略版（保留所有核心实体与关键细节，不要过度压缩）：\n\n{}",
+            prepared
+        );
+        call_ai_api(
+            &ai_config::compress_prompt(),
+            &user,
+            ai_config::compress_max_tokens(),
+            &api_url,
+            &api_key,
+            &model,
+            cancel,
+        ).await?
+    } else if let Some(direction) = args.user_direction.as_deref().filter(|d| !d.trim().is_empty()) {
         let previous = args.previous_summary.as_deref().unwrap_or("");
         let system = refine_system_prompt(&template_type, &summary_mode);
         let user = build_refine_user_message(&prepared, previous, direction);
@@ -627,7 +855,9 @@ async fn deep_read_inner(
 
     Ok(serde_json::json!({
         "rawContent": raw_content,
+        "images": images_json,
         "summary": summary,
-        "templateType": template_type
+        "templateType": template_type,
+        "pageTitle": extract_page_title(page_html.as_deref(), &raw_content),
     }))
 }

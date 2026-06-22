@@ -256,11 +256,13 @@ export class TauriApi extends FavoritesApi {
         const invokePromise = this.call<DeepReadResult>('deep_read', {
             url,
             rawContent: options?.rawContent ?? null,
+            images: options?.images ?? null,
             refetch: options?.refetch ?? null,
             templateType: options?.templateType ?? null,
             userDirection: options?.userDirection ?? null,
             previousSummary: options?.previousSummary ?? null,
             summaryMode: options?.summaryMode ?? null,
+            sourceMode: options?.sourceMode ?? null,
         });
 
         if (!options?.signal) {

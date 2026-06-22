@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { readListReturnPath } from '../utils/listNavigation';
 import { useCollectionStore } from '../store/collectionStore';
 import type { SearchResultItem } from '../types';
 import './SearchOverlay.css';
@@ -70,6 +71,12 @@ export default function SearchOverlay({ visible, onClose }: SearchOverlayProps) 
         }, 300);
     }, [doSearch]);
 
+    const goToCollection = useCallback((item: SearchResultItem) => {
+        const returnTo = readListReturnPath();
+        navigate(`/collection/${item.id}`, { state: { returnTo } });
+        onClose();
+    }, [navigate, onClose]);
+
     /** 键盘导航 */
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Escape') {
@@ -90,11 +97,10 @@ export default function SearchOverlay({ visible, onClose }: SearchOverlayProps) 
         }
         if (e.key === 'Enter' && selectedIndex >= 0) {
             const item = results[selectedIndex];
-            navigate(`/collection/${item.id}`);
-            onClose();
+            goToCollection(item);
             return;
         }
-    }, [results, selectedIndex, navigate, onClose]);
+    }, [results, selectedIndex, goToCollection, onClose]);
 
     /** 点击遮罩背景关闭 */
     const handleBackdropClick = useCallback((e: React.MouseEvent) => {
@@ -102,12 +108,6 @@ export default function SearchOverlay({ visible, onClose }: SearchOverlayProps) 
             onClose();
         }
     }, [onClose]);
-
-    /** 点击结果项导航 */
-    const handleResultClick = useCallback((item: SearchResultItem) => {
-        navigate(`/collection/${item.id}`);
-        onClose();
-    }, [navigate, onClose]);
 
     /** visible 变化时聚焦/重置 */
     useEffect(() => {
@@ -200,7 +200,7 @@ export default function SearchOverlay({ visible, onClose }: SearchOverlayProps) 
                                 <li
                                     key={item.id}
                                     className={`search-result-item ${index === selectedIndex ? 'selected' : ''}`}
-                                    onClick={() => handleResultClick(item)}
+                                    onClick={() => goToCollection(item)}
                                 >
                                     <span className={`search-result-type type-${item.type}`}>
                                         {TYPE_LABELS[item.type] || item.type}

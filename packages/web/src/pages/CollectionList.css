@@ -14,50 +14,79 @@
 
 .collection-list-header {
     flex-shrink: 0;
+    margin-bottom: var(--spacing-xl);
 }
 
 .collection-list-scroll {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     min-height: 0;
+    width: 100%;
+}
+
+.collection-list-scroll > .collection-list-content,
+.collection-list-scroll > .collection-list-content.virtual {
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* 工具栏 */
 .collection-list-toolbar {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--spacing-xl);
-    gap: var(--spacing-lg);
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: var(--spacing-md);
 }
 
-.collection-list-header .collection-list-toolbar:last-child {
-    margin-bottom: 0;
+.collection-list-toolbar-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-lg);
+    min-height: 36px;
 }
 
 .collection-list-toolbar-left {
     display: flex;
     align-items: baseline;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
+    min-width: 0;
 }
 
 .collection-list-title {
     font-family: var(--font-serif);
-    font-size: var(--font-size-2xl);
-    font-weight: 700;
+    font-size: var(--font-size-xl);
+    font-weight: 600;
     color: var(--color-text-primary);
+    line-height: 1.2;
 }
 
 .collection-list-count {
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-xs);
     color: var(--color-text-tertiary);
+    white-space: nowrap;
 }
 
-.collection-list-toolbar-right {
+.collection-list-toolbar-actions {
     display: flex;
     align-items: center;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
+    flex-shrink: 0;
+}
+
+.collection-list-toolbar-search {
+    width: 100%;
+}
+
+.collection-list-toolbar-search .search-bar {
+    width: 100%;
+    max-width: none;
+    padding: 7px var(--spacing-md);
+    border-radius: var(--radius-md);
+}
+
+.collection-list-toolbar-search .search-bar-input {
+    font-size: var(--font-size-sm);
 }
 
 /* 视图切换 */
@@ -66,14 +95,15 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 .view-toggle-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     color: var(--color-text-tertiary);
     transition: all var(--transition-fast);
 }
@@ -88,6 +118,52 @@
     color: var(--color-primary);
 }
 
+/* 卡片尺寸切换（仅 grid 视图） */
+.collection-list-card-size-toggle {
+    display: flex;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.card-size-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    color: var(--color-text-tertiary);
+    transition: all var(--transition-fast);
+}
+
+.card-size-btn:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+}
+
+.card-size-btn.active {
+    background-color: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+@media (max-width: 768px) {
+    .collection-list-toolbar-row {
+        flex-wrap: wrap;
+        gap: var(--spacing-sm);
+    }
+
+    .collection-list-toolbar-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .collection-list-batch-btn span,
+    .collection-list-batch-btn {
+        font-size: var(--font-size-xs);
+    }
+}
+
 /* 内容区域 */
 .collection-list-content.grid {
     display: grid;
@@ -95,10 +171,42 @@
     gap: var(--spacing-lg);
 }
 
+.collection-list-content.grid.card-size-small {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--spacing-md);
+}
+
 .collection-list-content.list {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: 0;
+    width: 100%;
+    box-sizing: border-box;
+    background-color: var(--color-bg-white);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.collection-list-content.virtual.list .collection-list-virtual-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    pointer-events: none;
+}
+
+.collection-list-content.virtual.list {
+    width: 100%;
+    box-sizing: border-box;
+    background-color: var(--color-bg-white);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.collection-list-content.virtual.list .collection-list-virtual-row {
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .collection-list-content.virtual.grid .collection-list-virtual-row {
@@ -109,11 +217,9 @@
     pointer-events: none;
 }
 
-.collection-list-content.virtual.list .collection-list-virtual-row {
-    display: flex;
-    flex-direction: column;
+.collection-list-content.virtual.grid.card-size-small .collection-list-virtual-row {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: var(--spacing-md);
-    pointer-events: none;
 }
 
 .collection-list-content.virtual .collection-card {
@@ -227,19 +333,19 @@
 .collection-list-sort-select {
     appearance: none;
     -webkit-appearance: none;
-    padding: var(--spacing-xs) var(--spacing-xl) var(--spacing-xs) var(--spacing-md);
-    padding-right: 28px;
+    height: 30px;
+    padding: 0 28px 0 var(--spacing-sm);
     background-color: var(--color-bg-white);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
     cursor: pointer;
     transition: all var(--transition-fast);
     background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239c8e7c' stroke-width='2' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 8px center;
-    min-width: 120px;
+    min-width: 108px;
 }
 
 .collection-list-sort-select:hover {
@@ -257,13 +363,15 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: var(--spacing-xs) var(--spacing-md);
+    height: 30px;
+    padding: 0 var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
     transition: all var(--transition-fast);
     white-space: nowrap;
+    background-color: var(--color-bg-white);
 }
 
 .collection-list-batch-btn:hover {

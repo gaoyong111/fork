@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../database/init';
+import { buildFolderScopeCondition } from '../utils/folderScope';
 
 const router = Router();
 
@@ -87,8 +88,9 @@ router.get('/', (req: Request<{}, {}, {}, SearchQueryParams>, res: Response) => 
             params.push(type);
         }
         if (folder_id) {
-            conditions.push('c.folder_id = ?');
-            params.push(folder_id);
+            const folderScope = buildFolderScopeCondition(db, folder_id, 'c.folder_id');
+            conditions.push(folderScope.sql);
+            params.push(...folderScope.params);
         }
 
         let joinClause = '';

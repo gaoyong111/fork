@@ -15,6 +15,15 @@ export type CollectionType = (typeof CollectionType)[keyof typeof CollectionType
 /** 精读摘要模式：简略 / 详细 */
 export type SummaryMode = 'brief' | 'detailed';
 
+/** 分离后的图片信息 */
+export interface ArticleImage {
+    id: number;
+    src: string;
+    alt: string;
+    /** 本地存储路径（抓取时下载），渲染优先使用 */
+    localPath?: string;
+}
+
 /**
  * 标签接口
  */
@@ -54,6 +63,7 @@ export interface Collection {
     contentDetailed: string | null;
     summaryMode: SummaryMode | null;
     rawContent: string | null;
+    images: string | null;
     thumbnailUrl: string | null;
     filePath: string | null;
     folderId: string | null;
@@ -141,6 +151,7 @@ export interface UpdateCollectionParams {
     contentDetailed?: string | null;
     summaryMode?: SummaryMode;
     rawContent?: string;
+    images?: string;
     thumbnailUrl?: string;
     folderId?: string | null;
     tagIds?: string[];
@@ -250,6 +261,8 @@ export interface DeepReadOptions {
     signal?: AbortSignal;
     /** 已有原文时跳过重抓，仅重新生成摘要 */
     rawContent?: string;
+    /** 已有图文分离数据（JSON），配合 rawContent 使用 */
+    images?: string;
     /** 强制重新抓取（忽略 rawContent） */
     refetch?: boolean;
     /** 文章类型模板，不传则自动检测 */
@@ -260,6 +273,8 @@ export interface DeepReadOptions {
     previousSummary?: string;
     /** 摘要模式：简略 / 详细 */
     summaryMode?: SummaryMode;
+    /** 从已有摘要压缩而非从原文精读（切换简略时使用） */
+    sourceMode?: 'compress';
 }
 
 /**
@@ -277,6 +292,10 @@ export interface DeepReadResult {
     rawContent: string;
     summary: string;
     templateType?: DeepReadTemplateType;
+    /** 图片元数据 JSON 字符串（与 Collection.images 存储格式一致） */
+    images?: string;
+    /** 页面抓取时解析到的标题，用于回填占位标题 */
+    pageTitle?: string;
 }
 
 /**

@@ -1,4 +1,5 @@
 use crate::db::{models::*, get_db};
+use crate::db::queries::folder::get_folder_scope_ids;
 use rusqlite::params;
 use uuid::Uuid;
 use chrono::Utc;
@@ -54,8 +55,12 @@ pub fn get_collections(params: Option<GetCollectionsParams>) -> Result<Paginated
         param_values.push(Box::new(rtype.clone()));
     }
     if let Some(ref folder_id) = p.folder_id {
-        conditions.push("folder_id = ?".to_string());
-        param_values.push(Box::new(folder_id.clone()));
+        let scope_ids = get_folder_scope_ids(&db, folder_id).map_err(|e| e.to_string())?;
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        conditions.push(format!("folder_id IN ({})", placeholders));
+        for id in scope_ids {
+            param_values.push(Box::new(id));
+        }
     }
     if let Some(ref tag_id) = p.tag_id {
         conditions.push("id IN (SELECT collection_id FROM collection_tags WHERE tag_id = ?)".to_string());
@@ -206,6 +211,10 @@ pub fn update_collection(id: String, data: UpdateCollectionParams) -> Result<Col
     if let Some(ref raw_content) = data.raw_content {
         updates.push("raw_content = ?".to_string());
         param_values.push(Box::new(raw_content.clone()));
+    }
+    if let Some(ref images) = data.images {
+        updates.push("images = ?".to_string());
+        param_values.push(Box::new(images.clone()));
     }
     if let Some(ref content_brief) = data.content_brief {
         updates.push("content_brief = ?".to_string());

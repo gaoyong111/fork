@@ -1,7 +1,6 @@
 /**
  * CollectionCard 组件 - 收藏项卡片组件
- * 文字驱动设计，突出标题和摘要，附带来源徽章
- * 支持批量选择模式和拖拽功能
+ * 支持 grid 卡片（小/中）与 list 精简行两种展示
  */
 
 import React, { memo } from 'react';
@@ -9,7 +8,14 @@ import { useShallow } from 'zustand/react/shallow';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { Collection } from '../types';
-import { formatRelativeTime, truncateText } from '../utils/format';
+import type { CardSize, ViewMode } from '../store/collectionStore';
+import {
+    getDisplayTitle,
+    getListContentPreview,
+    getMetadataGapLabel,
+    getMetadataGapStatus,
+} from '@favorites/shared/metadata/collectionMeta';
+import { formatRelativeTime } from '../utils/format';
 import { useDeepReadStore } from '../store/deepReadStore';
 import { wechatImageReferrerPolicy } from '../utils/wechatImage';
 import './CollectionCard.css';
@@ -17,6 +23,10 @@ import './CollectionCard.css';
 interface CollectionCardProps {
     /** 收藏项数据 */
     collection: Collection;
+    /** 展示模式 */
+    variant?: ViewMode;
+    /** 卡片尺寸（仅 grid 生效） */
+    size?: CardSize;
     /** 点击卡片回调 */
     onClick?: (collection: Collection) => void;
     /** 切换星标回调 */
@@ -61,12 +71,22 @@ function getSourceBadge(collection: Collection): { label: string; icon: string }
     return { label: '网页', icon: '↗' };
 }
 
+function getHostname(url: string): string {
+    try {
+        return new URL(url).hostname;
+    } catch {
+        return url;
+    }
+}
+
 /**
  * 收藏项卡片组件
  * @param props - 组件属性
  */
 export default memo(function CollectionCard({
     collection,
+    variant = 'grid',
+    size = 'medium',
     onClick,
     onToggleFavorite,
     onToggleArchive,
@@ -99,13 +119,6 @@ export default memo(function CollectionCard({
         onToggleFavorite?.(collection.id);
     };
 
-    const handleUrlClick = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (collection.url) {
-            window.open(collection.url, '_blank', 'noopener,noreferrer');
-        }
-    };
-
     const handleSelectClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         onSelect?.(collection.id);
@@ -126,72 +139,85 @@ export default memo(function CollectionCard({
         })),
     );
     const isDeepReading = deepReadTask?.status === 'processing' || deepReadTask?.status === 'pending';
+    const metadataGap = getMetadataGapStatus(collection, deepReadTask);
+    const metadataGapLabel = getMetadataGapLabel(metadataGap);
+    const displayTitle = getDisplayTitle(collection);
+    const listPreview = variant === 'list' ? getListContentPreview(collection) : '';
 
-    return (
-        <div
-            className={`collection-card ${selected ? 'collection-card-selected' : ''} ${collection.isArchived ? 'collection-card-archived' : ''}`}
-            ref={draggable ? setNodeRef : undefined}
-            style={dragStyle}
-            onClick={handleClick}
-            {...(draggable ? listeners : {})}
-            {...(draggable ? attributes : {})}
-        >
-            {/* 顶部赭石色装饰条 */}
-            <div className="collection-card-accent" />
+    const cardClassName = [
+        'collection-card',
+        variant === 'list' ? 'collection-card-list' : `collection-card-${size}`,
+        selected ? 'collection-card-selected' : '',
+        collection.isArchived ? 'collection-card-archived' : '',
+    ].filter(Boolean).join(' ');
 
-            {/* 批量选择 checkbox */}
-            {selectable && (
-                <div className="collection-card-checkbox" onClick={handleSelectClick}>
-                    <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={() => {}}
-                        tabIndex={-1}
-                    />
-                    <svg
-                        className="collection-card-checkbox-icon"
-                        width="16" height="16" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" strokeWidth="2"
-                    >
-                        <polyline points="20 6 9 17 4 12" />
-                    </svg>
+    if (variant === 'list') {
+        return (
+            <div
+                className={cardClassName}
+                ref={draggable ? setNodeRef : undefined}
+                style={dragStyle}
+                onClick={handleClick}
+                {...(draggable ? listeners : {})}
+                {...(draggable ? attributes : {})}
+            >
+                <div className="collection-card-list-leading">
+                    {selectable && (
+                        <div className="collection-card-checkbox collection-card-checkbox-list" onClick={handleSelectClick}>
+                            <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => {}}
+                                tabIndex={-1}
+                            />
+                            <svg
+                                className="collection-card-checkbox-icon"
+                                width="14" height="14" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" strokeWidth="2"
+                            >
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                        </div>
+                    )}
+
+                    {collection.isFavorite && (
+                        <span className="collection-card-list-fav" title="已星标">★</span>
+                    )}
                 </div>
-            )}
 
-            {/* 封面缩略图（可选） */}
-            {hasThumbnail && (
-                <div className="collection-card-cover">
-                    <img
-                        src={collection.thumbnailUrl ?? undefined}
-                        alt={collection.title}
-                        className="collection-card-thumbnail"
-                        loading="lazy"
-                        referrerPolicy={wechatImageReferrerPolicy(collection.thumbnailUrl)}
-                    />
-                </div>
-            )}
-
-            {/* 内容区域 */}
-            <div className="collection-card-body">
-                {/* 顶部元信息行：来源 + 精读状态 (左) | 星标 (右) */}
-                <div className="collection-card-top-row">
-                    <div className="collection-card-top-left">
-                        <span className="collection-card-source">
-                            <span className="collection-card-source-icon">{source.icon}</span>
-                            {source.label}
+                <div className="collection-card-list-main">
+                    <span className="collection-card-list-title" title={displayTitle}>
+                        {displayTitle}
+                    </span>
+                    {listPreview && (
+                        <span className="collection-card-list-preview" title={listPreview}>
+                            {listPreview}
                         </span>
-                        {isDeepReading && (
-                            <span className="collection-card-deepread-badge processing" title="精读中">
-                                <span className="deep-read-spinner-sm" />
-                                精读中
+                    )}
+                </div>
+
+                <div className="collection-card-list-trailing">
+                    <div className="collection-card-list-meta">
+                        {metadataGapLabel && (
+                            <span
+                                className={`collection-card-list-gap ${metadataGap}`}
+                                title={metadataGapLabel}
+                            >
+                                {metadataGapLabel}
                             </span>
+                        )}
+                        {isDeepReading && (
+                            <span className="collection-card-list-status processing" title="精读中">精读中</span>
                         )}
                         {hasDeepRead && !isDeepReading && (
-                            <span className="collection-card-deepread-badge done">
-                                ✓ 已精读
-                            </span>
+                            <span className="collection-card-list-status done" title="已精读">已精读</span>
                         )}
+                        <span className="collection-card-list-time">
+                            {formatRelativeTime(collection.createdAt)}
+                        </span>
                     </div>
+
+                    <div className="collection-card-actions collection-card-list-actions">
                     <button
                         type="button"
                         className={`collection-card-favorite ${collection.isFavorite ? 'active' : ''}`}
@@ -228,38 +254,126 @@ export default memo(function CollectionCard({
                             <line x1="10" y1="12" x2="14" y2="12" />
                         </svg>
                     </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div
+            className={cardClassName}
+            ref={draggable ? setNodeRef : undefined}
+            style={dragStyle}
+            onClick={handleClick}
+            {...(draggable ? listeners : {})}
+            {...(draggable ? attributes : {})}
+        >
+            <div className="collection-card-accent" />
+
+            {selectable && (
+                <div className="collection-card-checkbox" onClick={handleSelectClick}>
+                    <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => {}}
+                        tabIndex={-1}
+                    />
+                    <svg
+                        className="collection-card-checkbox-icon"
+                        width="16" height="16" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" strokeWidth="2"
+                    >
+                        <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                </div>
+            )}
+
+            {size === 'medium' && hasThumbnail && (
+                <div className="collection-card-cover">
+                    <img
+                        src={collection.thumbnailUrl ?? undefined}
+                        alt={collection.title}
+                        className="collection-card-thumbnail"
+                        loading="lazy"
+                        referrerPolicy={wechatImageReferrerPolicy(collection.thumbnailUrl)}
+                    />
+                </div>
+            )}
+
+            <div className="collection-card-body">
+                <div className="collection-card-top-row">
+                    <div className="collection-card-top-left">
+                        <span className="collection-card-source">
+                            <span className="collection-card-source-icon">{source.icon}</span>
+                            {source.label}
+                        </span>
+                        {isDeepReading && (
+                            <span className="collection-card-deepread-badge processing" title="精读中">
+                                <span className="deep-read-spinner-sm" />
+                                精读中
+                            </span>
+                        )}
+                        {hasDeepRead && !isDeepReading && (
+                            <span className="collection-card-deepread-badge done">
+                                ✓ 已精读
+                            </span>
+                        )}
+                    </div>
+                    <div className="collection-card-actions">
+                        <button
+                            type="button"
+                            className={`collection-card-favorite ${collection.isFavorite ? 'active' : ''}`}
+                            onClick={handleFavoriteClick}
+                            title={collection.isFavorite ? '取消星标' : '添加星标'}
+                        >
+                            <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill={collection.isFavorite ? 'currentColor' : 'none'}
+                                stroke="currentColor"
+                                strokeWidth="2"
+                            >
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                            </svg>
+                        </button>
+                        <button
+                            type="button"
+                            className={`collection-card-archive ${collection.isArchived ? 'active' : ''}`}
+                            onClick={handleArchiveClick}
+                            title={collection.isArchived ? '取消归档' : '归档'}
+                        >
+                            <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill={collection.isArchived ? 'currentColor' : 'none'}
+                                stroke="currentColor"
+                                strokeWidth="2"
+                            >
+                                <polyline points="21 8 21 21 3 21 3 8" />
+                                <rect x="1" y="3" width="22" height="5" />
+                                <line x1="10" y1="12" x2="14" y2="12" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
-                {/* 标题 */}
-                <h3 className="collection-card-title" title={collection.title}>
-                    {collection.title}
+                <h3 className="collection-card-title" title={displayTitle}>
+                    {displayTitle}
                 </h3>
 
-                {/* 描述/摘要 */}
-                {collection.description && (
+                {size === 'medium' && collection.description && (
                     <p className="collection-card-desc">
-                        {truncateText(collection.description, 100)}
+                        {collection.description}
                     </p>
                 )}
 
-                {/* 链接域名 */}
-                {collection.url && (
-                    <p className="collection-card-url" onClick={handleUrlClick} title={collection.url}>
-                        {(() => {
-                            try {
-                                return new URL(collection.url).hostname;
-                            } catch {
-                                return collection.url;
-                            }
-                        })()}
-                    </p>
-                )}
-
-                {/* 底部：标签 + 时间 */}
                 <div className="collection-card-footer">
                     {collection.tags.length > 0 && (
                         <div className="collection-card-tags">
-                            {collection.tags.slice(0, 3).map((tag) => (
+                            {collection.tags.slice(0, size === 'small' ? 2 : 3).map((tag) => (
                                 <span
                                     key={tag.id}
                                     className="collection-card-tag"
@@ -268,14 +382,19 @@ export default memo(function CollectionCard({
                                     {tag.name}
                                 </span>
                             ))}
-                            {collection.tags.length > 3 && (
+                            {collection.tags.length > (size === 'small' ? 2 : 3) && (
                                 <span className="collection-card-tag-more">
-                                    +{collection.tags.length - 3}
+                                    +{collection.tags.length - (size === 'small' ? 2 : 3)}
                                 </span>
                             )}
                         </div>
                     )}
-                    <div className="collection-card-footer-right">
+                    <div className="collection-card-meta">
+                        {collection.url && (
+                            <span className="collection-card-hostname" title={collection.url}>
+                                {getHostname(collection.url)}
+                            </span>
+                        )}
                         {collection.readCount > 0 && (
                             <span className="collection-card-read-count">
                                 读{collection.readCount}次

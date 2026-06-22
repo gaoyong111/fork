@@ -118,6 +118,37 @@ describe('GET /api/collections', () => {
         expect(res.body.data.items[0].title).toBe('文件夹内收藏');
     });
 
+    it('按父文件夹筛选应包含子文件夹内的收藏', async () => {
+        const parentRes = await ctx.request.post('/api/folders').send({ name: '技术' });
+        const childRes = await ctx.request.post('/api/folders').send({
+            name: 'AI',
+            parent_id: parentRes.body.data.id,
+        });
+        const parentId = parentRes.body.data.id;
+        const childId = childRes.body.data.id;
+
+        await ctx.request.post('/api/collections').send({
+            title: '技术根目录',
+            folder_id: parentId,
+        });
+        await ctx.request.post('/api/collections').send({
+            title: 'AI 文章一',
+            folder_id: childId,
+        });
+        await ctx.request.post('/api/collections').send({
+            title: 'AI 文章二',
+            folder_id: childId,
+        });
+
+        const parentFilter = await ctx.request.get(`/api/collections?folder_id=${parentId}`);
+        expect(parentFilter.status).toBe(200);
+        expect(parentFilter.body.data.items).toHaveLength(3);
+
+        const childFilter = await ctx.request.get(`/api/collections?folder_id=${childId}`);
+        expect(childFilter.status).toBe(200);
+        expect(childFilter.body.data.items).toHaveLength(2);
+    });
+
     it('应支持按 tag_id 筛选', async () => {
         const tagId = await createTag('测试标签');
 

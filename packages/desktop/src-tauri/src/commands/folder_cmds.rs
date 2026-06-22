@@ -1,4 +1,5 @@
 use crate::db::{models::*, get_db};
+use crate::db::queries::folder::get_folder_scope_ids;
 use rusqlite::params;
 use uuid::Uuid;
 use chrono::Utc;
@@ -161,7 +162,7 @@ pub fn update_folder(id: String, data: UpdateFolderParams) -> Result<Folder, Str
 pub fn delete_folder(id: String) -> Result<(), String> {
     let db = get_db().lock().map_err(|e| e.to_string())?;
 
-    let all_ids = get_all_descendant_ids(&db, &id)?;
+    let all_ids = get_folder_scope_ids(&db, &id).map_err(|e| e.to_string())?;
     let ids_str = all_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
 
     db.prepare(&format!("UPDATE collections SET folder_id = NULL WHERE folder_id IN ({})", ids_str))
@@ -175,23 +176,4 @@ pub fn delete_folder(id: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     Ok(())
-}
-
-fn get_all_descendant_ids(db: &rusqlite::Connection, folder_id: &str) -> Result<Vec<String>, String> {
-    let mut all_ids = vec![folder_id.to_string()];
-    let mut to_process = vec![folder_id.to_string()];
-
-    while !to_process.is_empty() {
-        let current = to_process.pop().unwrap();
-        let mut stmt = db.prepare("SELECT id FROM folders WHERE parent_id = ?").map_err(|e| e.to_string())?;
-        let children: Vec<String> = stmt.query_map(params![current], |row| row.get(0))
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<String>, _>>().map_err(|e| e.to_string())?;
-        for child in children {
-            all_ids.push(child.clone());
-            to_process.push(child);
-        }
-    }
-
-    Ok(all_ids)
 }

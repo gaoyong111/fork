@@ -23,6 +23,7 @@ import { useDeepReadStore } from '../store/deepReadStore';
 import { getListBodyScrollKey, restoreScrollWhenReady } from '../hooks/useScrollRestoration';
 import { useScrollContainerRestoration } from '../hooks/useScrollContainerRestoration';
 import * as api from '../services/api';
+import { getListReturnPath, saveListReturnPath } from '../utils/listNavigation';
 import './CollectionList.css';
 
 /** 排序选项 */
@@ -65,9 +66,11 @@ export default function CollectionList() {
     const pageSize = useCollectionStore((s) => s.pageSize);
     const filters = useCollectionStore((s) => s.filters);
     const viewMode = useCollectionStore((s) => s.viewMode);
+    const cardSize = useCollectionStore((s) => s.cardSize);
     const setFilters = useCollectionStore((s) => s.setFilters);
     const setPage = useCollectionStore((s) => s.setPage);
     const setViewMode = useCollectionStore((s) => s.setViewMode);
+    const setCardSize = useCollectionStore((s) => s.setCardSize);
     const optimisticToggleFavorite = useCollectionStore((s) => s.optimisticToggleFavorite);
     const optimisticToggleArchive = useCollectionStore((s) => s.optimisticToggleArchive);
     const totalPages = Math.ceil(total / pageSize);
@@ -96,6 +99,11 @@ export default function CollectionList() {
         const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
         setFilters({ folderId, tagId, isFavorite, sortBy, sortOrder });
     }, [searchParams, setFilters]);
+
+    /** 同步当前列表筛选到 sessionStorage，供详情页返回使用 */
+    useEffect(() => {
+        saveListReturnPath(getListReturnPath(location.pathname, location.search));
+    }, [location.pathname, location.search]);
 
     useScrollContainerRestoration(listScrollRef, listBodyScrollKey);
 
@@ -163,26 +171,46 @@ export default function CollectionList() {
      */
     const handleCardClick = (collection: Collection) => {
         if (batchMode) return;
-        navigate(`/collection/${collection.id}`);
+        const returnTo = getListReturnPath(location.pathname, location.search);
+        saveListReturnPath(returnTo);
+        navigate(`/collection/${collection.id}`, { state: { returnTo } });
     };
 
     /**
      * 切换星标
      */
-    const handleToggleFavorite = useCallback((id: string) => {
-        void optimisticToggleFavorite(id).catch(() => {
+    const handleToggleFavorite = useCallback(async (id: string) => {
+        try {
+            const result = await optimisticToggleFavorite(id);
+            showToast(result.isFavorite ? '已添加星标' : '已取消星标', 'success');
+        } catch {
             showToast('星标操作失败，请重试', 'error');
-        });
+        }
     }, [optimisticToggleFavorite, showToast]);
 
     /**
-     * 切换归档
+     * 切换归档（归档/取消归档均需确认）
      */
-    const handleToggleArchive = useCallback((id: string) => {
-        void optimisticToggleArchive(id).catch(() => {
-            showToast('归档操作失败，请重试', 'error');
+    const handleToggleArchive = useCallback(async (id: string) => {
+        const collection = useCollectionStore.getState().collections.find((c) => c.id === id);
+        if (!collection) return;
+
+        const confirmed = await showConfirm({
+            title: collection.isArchived ? '取消归档' : '确认归档',
+            message: collection.isArchived
+                ? `确定取消归档「${collection.title}」吗？`
+                : `确定归档「${collection.title}」吗？归档后该项会排到列表末尾。`,
+            confirmText: collection.isArchived ? '取消归档' : '归档',
         });
-    }, [optimisticToggleArchive, showToast]);
+        if (!confirmed) return;
+
+        try {
+            const result = await optimisticToggleArchive(id);
+            showToast(result.isArchived ? '已归档' : '已取消归档', 'success');
+        } catch {
+            showToast('归档操作失败，请重试', 'error');
+        }
+    }, [optimisticToggleArchive, showConfirm, showToast]);
 
     /**
      * 切换页码
@@ -357,81 +385,114 @@ export default function CollectionList() {
                 <div className="collection-list-header">
                     {/* 工具栏 */}
                     <div className="collection-list-toolbar">
-                <div className="collection-list-toolbar-left">
-                    <h2 className="collection-list-title">{getFilterTitle()}</h2>
-                    <span className="collection-list-count">
-                        共 {total} 项
-                    </span>
-                </div>
+                        <div className="collection-list-toolbar-row">
+                            <div className="collection-list-toolbar-left">
+                                <h2 className="collection-list-title">{getFilterTitle()}</h2>
+                                <span className="collection-list-count">
+                                    共 {total} 项
+                                </span>
+                            </div>
 
-                <div className="collection-list-toolbar-right">
-                    <SearchBar onSearch={handleSearch} placeholder="搜索收藏..." />
+                            <div className="collection-list-toolbar-actions">
+                                <div className="collection-list-sort">
+                                    <select
+                                        className="collection-list-sort-select"
+                                        value={`${currentSortOption.sortBy}-${currentSortOption.sortOrder}`}
+                                        onChange={(e) => {
+                                            const option = SORT_OPTIONS.find(
+                                                (o) => `${o.sortBy}-${o.sortOrder}` === e.target.value,
+                                            );
+                                            if (option) handleSortChange(option);
+                                        }}
+                                    >
+                                        {SORT_OPTIONS.map((option) => (
+                                            <option
+                                                key={`${option.sortBy}-${option.sortOrder}`}
+                                                value={`${option.sortBy}-${option.sortOrder}`}
+                                            >
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                    {/* 排序选择器 */}
-                    <div className="collection-list-sort">
-                        <select
-                            className="collection-list-sort-select"
-                            value={`${currentSortOption.sortBy}-${currentSortOption.sortOrder}`}
-                            onChange={(e) => {
-                                const option = SORT_OPTIONS.find(
-                                    (o) => `${o.sortBy}-${o.sortOrder}` === e.target.value,
-                                );
-                                if (option) handleSortChange(option);
-                            }}
-                        >
-                            {SORT_OPTIONS.map((option) => (
-                                <option
-                                    key={`${option.sortBy}-${option.sortOrder}`}
-                                    value={`${option.sortBy}-${option.sortOrder}`}
+                                <button
+                                    className={`collection-list-batch-btn ${batchMode ? 'active' : ''}`}
+                                    onClick={batchMode ? exitBatchMode : enterBatchMode}
+                                    title={batchMode ? '退出批量管理' : '批量管理'}
                                 >
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <polyline points="9 11 12 14 22 4" />
+                                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                                    </svg>
+                                    {batchMode ? '退出批量' : '批量管理'}
+                                </button>
 
-                    {/* 批量管理按钮 */}
-                    <button
-                        className={`collection-list-batch-btn ${batchMode ? 'active' : ''}`}
-                        onClick={batchMode ? exitBatchMode : enterBatchMode}
-                        title={batchMode ? '退出批量管理' : '批量管理'}
-                    >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="9 11 12 14 22 4" />
-                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                        </svg>
-                        {batchMode ? '退出批量' : '批量管理'}
-                    </button>
+                                <div className="collection-list-view-toggle">
+                                    <button
+                                        className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                                        onClick={() => setViewMode('grid')}
+                                        title="卡片视图"
+                                    >
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <rect x="3" y="3" width="7" height="7" />
+                                            <rect x="14" y="3" width="7" height="7" />
+                                            <rect x="14" y="14" width="7" height="7" />
+                                            <rect x="3" y="14" width="7" height="7" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+                                        onClick={() => setViewMode('list')}
+                                        title="列表视图"
+                                    >
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <line x1="8" y1="6" x2="21" y2="6" />
+                                            <line x1="8" y1="12" x2="21" y2="12" />
+                                            <line x1="8" y1="18" x2="21" y2="18" />
+                                            <line x1="3" y1="6" x2="3.01" y2="6" />
+                                            <line x1="3" y1="12" x2="3.01" y2="12" />
+                                            <line x1="3" y1="18" x2="3.01" y2="18" />
+                                        </svg>
+                                    </button>
+                                </div>
 
-                    <div className="collection-list-view-toggle">
-                        <button
-                            className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                            onClick={() => setViewMode('grid')}
-                            title="卡片视图"
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <rect x="3" y="3" width="7" height="7" />
-                                <rect x="14" y="3" width="7" height="7" />
-                                <rect x="14" y="14" width="7" height="7" />
-                                <rect x="3" y="14" width="7" height="7" />
-                            </svg>
-                        </button>
-                        <button
-                            className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
-                            onClick={() => setViewMode('list')}
-                            title="列表视图"
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <line x1="8" y1="6" x2="21" y2="6" />
-                                <line x1="8" y1="12" x2="21" y2="12" />
-                                <line x1="8" y1="18" x2="21" y2="18" />
-                                <line x1="3" y1="6" x2="3.01" y2="6" />
-                                <line x1="3" y1="12" x2="3.01" y2="12" />
-                                <line x1="3" y1="18" x2="3.01" y2="18" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
+                                {viewMode === 'grid' && (
+                                    <div className="collection-list-card-size-toggle">
+                                        <button
+                                            className={`card-size-btn ${cardSize === 'small' ? 'active' : ''}`}
+                                            onClick={() => setCardSize('small')}
+                                            title="小卡片"
+                                        >
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <rect x="3" y="3" width="5" height="5" />
+                                                <rect x="10" y="3" width="5" height="5" />
+                                                <rect x="17" y="3" width="5" height="5" />
+                                                <rect x="3" y="10" width="5" height="5" />
+                                                <rect x="10" y="10" width="5" height="5" />
+                                                <rect x="17" y="10" width="5" height="5" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            className={`card-size-btn ${cardSize === 'medium' ? 'active' : ''}`}
+                                            onClick={() => setCardSize('medium')}
+                                            title="中卡片"
+                                        >
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <rect x="3" y="3" width="8" height="8" />
+                                                <rect x="13" y="3" width="8" height="8" />
+                                                <rect x="3" y="13" width="8" height="8" />
+                                                <rect x="13" y="13" width="8" height="8" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="collection-list-toolbar-search">
+                            <SearchBar onSearch={handleSearch} placeholder="搜索收藏..." />
+                        </div>
                     </div>
 
                     {/* 批量操作工具栏 */}
@@ -497,9 +558,9 @@ export default function CollectionList() {
                     <span>操作中...</span>
                 </div>
             ) : loading ? (
-                <div className={`collection-list-content ${viewMode}`}>
+                <div className={`collection-list-content ${viewMode} ${viewMode === 'grid' ? `card-size-${cardSize}` : ''}`}>
                     {Array.from({ length: 6 }).map((_, i) => (
-                        <SkeletonCard key={i} viewMode={viewMode} />
+                        <SkeletonCard key={i} viewMode={viewMode} cardSize={cardSize} />
                     ))}
                 </div>
             ) : collections.length === 0 ? (
@@ -519,6 +580,7 @@ export default function CollectionList() {
                     <VirtualCollectionList
                         collections={collections}
                         viewMode={viewMode}
+                        cardSize={cardSize}
                         batchMode={batchMode}
                         selectedIds={selectedIds}
                         onCardClick={handleCardClick}

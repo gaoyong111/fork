@@ -12,10 +12,14 @@ export interface DeepReadAiConfig {
     fetchTimeoutMs: number;
     aiTimeoutMs: number;
     maxHtmlSizeBytes: number;
+    maxAiContentChars: number;
+    maxChunks: number;
     maxTokens: { chunk: number; full: number; merge?: number; refine?: number };
     temperature: number;
     userMessagePrefix: string;
     refinePrompt?: string;
+    compressPrompt?: string;
+    compressMaxTokens?: number;
     prompts: { full: string; chunk: string; merge: string };
 }
 
@@ -35,10 +39,14 @@ export {
     getRefineSystemPrompt,
     buildRefineUserMessage,
     buildDefaultUserMessage,
+    getCompressPrompt,
+    getCompressMaxTokens,
+    buildCompressUserMessage,
 } from './deepReadTemplates';
 export {
     resolveSummaryMode,
     getCachedSummary,
+    hasCachedSummary,
     buildDeepReadCollectionUpdate,
 } from './summaryMode';
 export {
@@ -46,4 +54,5 @@ export {
     contentToPlainText,
     countParagraphs,
     prepareContentForAi,
+    truncateForAi,
 } from './htmlUtils';

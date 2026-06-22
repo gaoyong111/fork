@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database/init';
+import { buildFolderScopeCondition } from '../utils/folderScope';
 
 const router = Router();
 
@@ -52,6 +53,7 @@ interface UpdateCollectionBody {
     content?: string;
     raw_content?: string;
     rawContent?: string;
+    images?: string;
     content_brief?: string | null;
     contentBrief?: string | null;
     content_detailed?: string | null;
@@ -99,8 +101,9 @@ router.get('/', (req: Request<{}, {}, {}, CollectionQueryParams>, res: Response)
         const params: unknown[] = [];
 
         if (folder_id) {
-            conditions.push('c.folder_id = ?');
-            params.push(folder_id);
+            const folderScope = buildFolderScopeCondition(db, folder_id);
+            conditions.push(folderScope.sql);
+            params.push(...folderScope.params);
         }
 
         if (type) {
@@ -597,6 +600,7 @@ router.put('/:id', (req: Request<{ id: string }, {}, UpdateCollectionBody>, res:
             content,
             raw_content,
             rawContent,
+            images,
             summary,
             description,
             cover_url,
@@ -662,6 +666,10 @@ router.put('/:id', (req: Request<{ id: string }, {}, UpdateCollectionBody>, res:
         if (resolvedRawContent !== undefined) {
             fields.push('raw_content = ?');
             values.push(resolvedRawContent || null);
+        }
+        if (images !== undefined) {
+            fields.push('images = ?');
+            values.push(images || null);
         }
         if (resolvedContentBrief !== undefined) {
             fields.push('content_brief = ?');

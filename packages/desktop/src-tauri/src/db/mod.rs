@@ -124,6 +124,12 @@ fn migrate_columns(conn: &Connection) {
         println!("[数据库] 迁移：新增 summary_mode 列");
     }
 
+    if !existing.contains("images") {
+        conn.execute_batch("ALTER TABLE collections ADD COLUMN images TEXT DEFAULT NULL")
+            .expect("迁移 images 列失败");
+        println!("[数据库] 迁移：新增 images 列");
+    }
+
     // 重建 FTS5 表以包含 raw_content 列
     rebuild_fts_if_needed(conn);
 }

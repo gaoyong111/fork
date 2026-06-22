@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { isWechatArticleUrl } from '../../../shared/src/metadata/wechatExtract';
 import { contentToPlainText, countParagraphs, isHtmlContent } from '../../../shared/src/ai/htmlUtils';
+import type { ArticleImage } from '../../../shared/src/types';
 
 export { contentToPlainText, countParagraphs, isHtmlContent };
 
@@ -36,21 +37,12 @@ function findArticleRoot($: cheerio.CheerioAPI, pageUrl: string) {
     return $('body');
 }
 
-function normalizeImages($: cheerio.CheerioAPI, container: ReturnType<typeof findArticleRoot>, pageUrl: string): void {
-    container.find('img').each((_i, el) => {
-        const $img = $(el);
-        const src = $img.attr('data-src') || $img.attr('data-original') || $img.attr('src');
-        const resolved = resolveUrl(src, pageUrl);
-        if (resolved) {
-            $img.attr('src', resolved);
-        }
-        $img.removeAttr('data-src');
-        $img.removeAttr('data-original');
-        $img.removeAttr('style');
-    });
-}
-
-function buildHtmlFromContainer($: cheerio.CheerioAPI, container: ReturnType<typeof findArticleRoot>): string {
+function buildHtmlFromContainer(
+    $: cheerio.CheerioAPI,
+    container: ReturnType<typeof findArticleRoot>,
+    pageUrl: string,
+    images: ArticleImage[],
+): string {
     const blockSelector = 'p, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, figure, img, hr, section';
     const parts: string[] = [];
 
@@ -59,10 +51,13 @@ function buildHtmlFromContainer($: cheerio.CheerioAPI, container: ReturnType<typ
         const tag = el.type === 'tag' ? el.tagName.toLowerCase() : '';
 
         if (tag === 'img') {
-            const src = $el.attr('src');
-            if (src) {
+            const src = $el.attr('data-src') || $el.attr('data-original') || $el.attr('src');
+            const resolved = resolveUrl(src, pageUrl);
+            if (resolved) {
                 const alt = $el.attr('alt') || '配图';
-                parts.push(`<img src="${src}" alt="${alt}" />`);
+                const id = images.length + 1;
+                images.push({ id, src: resolved, alt });
+                parts.push(`<p>[图${id}]</p>`);
             }
             return;
         }
@@ -87,8 +82,15 @@ function buildHtmlFromContainer($: cheerio.CheerioAPI, container: ReturnType<typ
     return parts.join('\n');
 }
 
-/** 从页面 HTML 提取保留格式与图片的原文 */
+/** 从页面 HTML 提取正文（兼容旧调用，仅返回 HTML） */
 export function extractArticleHtml(html: string, pageUrl: string): string {
+    const images: ArticleImage[] = [];
+    const { html: extractedHtml } = extractArticleHtmlWithImages(html, pageUrl, images);
+    return extractedHtml;
+}
+
+/** 从页面 HTML 提取正文 + 图片列表（图文分离版） */
+export function extractArticleHtmlWithImages(html: string, pageUrl: string, images: ArticleImage[]): { html: string; images: ArticleImage[] } {
     const $ = cheerio.load(html);
 
     for (const sel of NOISE_SELECTORS) {
@@ -96,10 +98,10 @@ export function extractArticleHtml(html: string, pageUrl: string): string {
     }
 
     const root = findArticleRoot($, pageUrl);
-    if (!root.length) return '';
+    if (!root.length) return { html: '', images };
 
-    normalizeImages($, root, pageUrl);
-    return buildHtmlFromContainer($, root).trim();
+    const extractedHtml = buildHtmlFromContainer($, root, pageUrl, images).trim();
+    return { html: extractedHtml, images };
 }
 
 export { prepareContentForAi } from '../../../shared/src/ai/htmlUtils';

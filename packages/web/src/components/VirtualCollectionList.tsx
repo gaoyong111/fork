@@ -8,17 +8,22 @@ import { useLocation } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import CollectionCard from './CollectionCard';
 import type { Collection } from '../types';
+import type { CardSize, ViewMode } from '../store/collectionStore';
 import { useCollectionListScrollRefOptional } from '../contexts/CollectionListScrollContext';
 import { getListBodyScrollKey, restoreScrollWhenReady } from '../hooks/useScrollRestoration';
 
-const GRID_MIN_COLUMN_WIDTH = 300;
-const GRID_ROW_HEIGHT = 220;
-const LIST_ROW_HEIGHT = 96;
+const GRID_LAYOUT = {
+    small: { minColumnWidth: 220, rowHeight: 160 },
+    medium: { minColumnWidth: 300, rowHeight: 220 },
+} as const;
+
+const LIST_ROW_HEIGHT = 44;
 const VIRTUAL_THRESHOLD = 12;
 
 interface VirtualCollectionListProps {
     collections: Collection[];
-    viewMode: 'grid' | 'list';
+    viewMode: ViewMode;
+    cardSize: CardSize;
     batchMode: boolean;
     selectedIds: Set<string>;
     onCardClick: (collection: Collection) => void;
@@ -30,6 +35,7 @@ interface VirtualCollectionListProps {
 export default function VirtualCollectionList({
     collections,
     viewMode,
+    cardSize,
     batchMode,
     selectedIds,
     onCardClick,
@@ -43,6 +49,8 @@ export default function VirtualCollectionList({
     const listRootRef = useRef<HTMLDivElement>(null);
     const [containerWidth, setContainerWidth] = useState(1200);
 
+    const gridLayout = GRID_LAYOUT[cardSize];
+
     useEffect(() => {
         const measureTarget = listScrollRef?.current ?? listRootRef.current;
         if (!measureTarget) return;
@@ -53,15 +61,20 @@ export default function VirtualCollectionList({
         const observer = new ResizeObserver(updateWidth);
         observer.observe(measureTarget);
         return () => observer.disconnect();
-    }, [listScrollRef, collections.length, viewMode]);
+    }, [listScrollRef, collections.length, viewMode, cardSize]);
 
     const columnCount = useMemo(() => {
         if (viewMode === 'list') return 1;
-        return Math.max(1, Math.floor(containerWidth / GRID_MIN_COLUMN_WIDTH));
-    }, [viewMode, containerWidth]);
+        return Math.max(1, Math.floor(containerWidth / gridLayout.minColumnWidth));
+    }, [viewMode, containerWidth, gridLayout.minColumnWidth]);
 
     const rowCount = Math.ceil(collections.length / columnCount);
-    const rowHeight = viewMode === 'list' ? LIST_ROW_HEIGHT : GRID_ROW_HEIGHT;
+    const rowHeight = viewMode === 'list' ? LIST_ROW_HEIGHT : gridLayout.rowHeight;
+    const contentClassName = [
+        'collection-list-content',
+        viewMode,
+        viewMode === 'grid' ? `card-size-${cardSize}` : '',
+    ].filter(Boolean).join(' ');
 
     const rowVirtualizer = useVirtualizer({
         count: rowCount,
@@ -78,21 +91,25 @@ export default function VirtualCollectionList({
         restoreScrollWhenReady(listScrollRef?.current, scrollKey);
     }, [scrollKey, totalSize, collections.length, listScrollRef]);
 
+    const renderCard = (collection: Collection) => (
+        <CollectionCard
+            key={collection.id}
+            collection={collection}
+            variant={viewMode}
+            size={cardSize}
+            onClick={onCardClick}
+            onToggleFavorite={onToggleFavorite}
+            onToggleArchive={onToggleArchive}
+            selectable={batchMode}
+            selected={selectedIds.has(collection.id)}
+            onSelect={onSelect}
+        />
+    );
+
     if (collections.length < VIRTUAL_THRESHOLD) {
         return (
-            <div ref={listRootRef} className={`collection-list-content ${viewMode}`}>
-                {collections.map((collection) => (
-                    <CollectionCard
-                        key={collection.id}
-                        collection={collection}
-                        onClick={onCardClick}
-                        onToggleFavorite={onToggleFavorite}
-                        onToggleArchive={onToggleArchive}
-                        selectable={batchMode}
-                        selected={selectedIds.has(collection.id)}
-                        onSelect={onSelect}
-                    />
-                ))}
+            <div ref={listRootRef} className={contentClassName}>
+                {collections.map(renderCard)}
             </div>
         );
     }
@@ -100,7 +117,7 @@ export default function VirtualCollectionList({
     return (
         <div
             ref={listRootRef}
-            className={`collection-list-content virtual ${viewMode}`}
+            className={`${contentClassName} virtual`}
         >
             <div
                 style={{
@@ -116,7 +133,7 @@ export default function VirtualCollectionList({
                     return (
                         <div
                             key={virtualRow.key}
-                            className={`collection-list-virtual-row ${viewMode}`}
+                            className={`collection-list-virtual-row ${viewMode} ${viewMode === 'grid' ? `card-size-${cardSize}` : ''}`}
                             style={{
                                 position: 'absolute',
                                 top: 0,
@@ -126,18 +143,7 @@ export default function VirtualCollectionList({
                                 transform: `translateY(${virtualRow.start}px)`,
                             }}
                         >
-                            {rowItems.map((collection) => (
-                                <CollectionCard
-                                    key={collection.id}
-                                    collection={collection}
-                                    onClick={onCardClick}
-                                    onToggleFavorite={onToggleFavorite}
-                                    onToggleArchive={onToggleArchive}
-                                    selectable={batchMode}
-                                    selected={selectedIds.has(collection.id)}
-                                    onSelect={onSelect}
-                                />
-                            ))}
+                            {rowItems.map(renderCard)}
                         </div>
                     );
                 })}

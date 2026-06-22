@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { useFolderStore, type FolderState } from '../store/folderStore';
 import { useTagStore, type TagState } from '../store/tagStore';
@@ -12,6 +12,7 @@ import { useDeepReadStore } from '../store/deepReadStore';
 import { useCollectionStore } from '../store/collectionStore';
 import TagPopover from '../components/TagPopover';
 import DeepReadDirectionModal from '../components/DeepReadDirectionModal';
+import { resolveListReturnPath, type ListReturnState } from '../utils/listNavigation';
 import type { Collection, Folder } from '../types';
 import {
     isHtmlContent as isHtmlRawContent,
@@ -21,7 +22,7 @@ import {
 import type { SummaryMode } from '../types';
 import * as api from '../services/api';
 import { formatDate } from '../utils/format';
-import { wechatImageReferrerPolicy } from '../utils/wechatImage';
+import { wechatImageReferrerPolicy, renderImagePlaceholders } from '../utils/wechatImage';
 import { useToast } from '../contexts/ToastContext';
 import './CollectionDetail.css';
 
@@ -32,6 +33,8 @@ import './CollectionDetail.css';
 export default function CollectionDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
+    const listReturnTo = resolveListReturnPath(location.state as ListReturnState | null);
     const { showToast, showConfirm } = useToast();
 
     const [localCollection, setLocalCollection] = useState<Collection | null>(null);
@@ -42,6 +45,7 @@ export default function CollectionDetail() {
     const deepReadTask = useDeepReadStore((s) => (id ? s.taskByCollectionId[id] : undefined));
     const completedContent = useDeepReadStore((s) => id ? s.completedContent[id] : undefined);
     const completedRawContent = useDeepReadStore((s) => id ? s.completedRawContent[id] : undefined);
+    const completedCollection = useDeepReadStore((s) => id ? s.completedCollections[id] : undefined);
     const enqueue = useDeepReadStore((s) => s.enqueue);
     const retryTask = useDeepReadStore((s) => s.retryTask);
 
@@ -66,12 +70,23 @@ export default function CollectionDetail() {
     }, [id]);
 
     useEffect(() => {
-        if (!id || !completedContent) return;
+        if (!id) return;
+        const patch = completedCollection ?? (completedContent ? { content: completedContent } : null);
+        if (!patch) return;
         setLocalCollection((prev) => {
             if (!prev || prev.id !== id) return prev;
-            return { ...prev, content: completedContent };
+            return {
+                ...prev,
+                content: patch.content ?? prev.content,
+                contentBrief: patch.contentBrief ?? prev.contentBrief,
+                contentDetailed: patch.contentDetailed ?? prev.contentDetailed,
+                summaryMode: patch.summaryMode ?? prev.summaryMode,
+                rawContent: patch.rawContent ?? prev.rawContent,
+                images: patch.images ?? prev.images,
+                updatedAt: patch.updatedAt ?? prev.updatedAt,
+            };
         });
-    }, [id, completedContent]);
+    }, [id, completedCollection, completedContent]);
 
     /**
      * 加载收藏详情
@@ -86,14 +101,15 @@ export default function CollectionDetail() {
                 useTagStore.getState().fetchTags(),
             ]);
 
-            // 优先从 collectionStore 读取
+            // 详情页始终拉完整记录，确保 contentBrief/contentDetailed 可用于模式切换
             const storeItem = useCollectionStore.getState().collections.find((c) => c.id === id);
-            let detailData: Collection;
-
-            if (storeItem && storeItem.content) {
-                detailData = storeItem;
-            } else {
-                detailData = await api.getCollectionById(id!);
+            let detailData = await api.getCollectionById(id!);
+            if (storeItem) {
+                detailData = {
+                    ...detailData,
+                    isFavorite: storeItem.isFavorite,
+                    isArchived: storeItem.isArchived,
+                };
             }
 
             setLocalCollection(detailData);
@@ -214,32 +230,51 @@ export default function CollectionDetail() {
                 }
             },
         });
-        navigate('/');
-    }, [localCollection, showConfirm, showToast, navigate]);
+        navigate(listReturnTo);
+    }, [localCollection, showConfirm, showToast, navigate, listReturnTo]);
 
     /**
      * 切换星标 - 乐观更新
      */
-    const handleToggleFavorite = useCallback(() => {
+    const handleToggleFavorite = useCallback(async () => {
         if (!localCollection) return;
-        useCollectionStore.getState().optimisticToggleFavorite(localCollection.id);
-        setLocalCollection({ ...localCollection, isFavorite: !localCollection.isFavorite });
-    }, [localCollection]);
+
+        try {
+            const result = await useCollectionStore.getState().optimisticToggleFavorite(localCollection.id);
+            setLocalCollection((prev) =>
+                prev ? { ...prev, isFavorite: result.isFavorite } : prev
+            );
+            showToast(result.isFavorite ? '已添加星标' : '已取消星标', 'success');
+        } catch {
+            showToast('星标操作失败，请重试', 'error');
+        }
+    }, [localCollection, showToast]);
 
     /**
-     * 切换归档状态
+     * 切换归档状态（归档/取消归档均需确认）
      */
     const handleToggleArchive = useCallback(async () => {
         if (!localCollection) return;
+
+        const confirmed = await showConfirm({
+            title: localCollection.isArchived ? '取消归档' : '确认归档',
+            message: localCollection.isArchived
+                ? `确定取消归档「${localCollection.title}」吗？`
+                : `确定归档「${localCollection.title}」吗？归档后该项会排到列表末尾。`,
+            confirmText: localCollection.isArchived ? '取消归档' : '归档',
+        });
+        if (!confirmed) return;
+
         try {
             const result = await useCollectionStore.getState().optimisticToggleArchive(localCollection.id);
             setLocalCollection((prev) =>
                 prev ? { ...prev, isArchived: result.isArchived } : prev
             );
+            showToast(result.isArchived ? '已归档' : '已取消归档', 'success');
         } catch {
             showToast('归档操作失败，请重试', 'error');
         }
-    }, [localCollection, showToast]);
+    }, [localCollection, showConfirm, showToast]);
 
     /**
      * 重新摘要（有原文时跳过重抓，使用默认模板）
@@ -250,12 +285,13 @@ export default function CollectionDetail() {
         const mode = resolveSummaryMode(localCollection);
         enqueue(localCollection.id, localCollection.url, localCollection.title, 1, {
             rawContent: raw || undefined,
+            images: localCollection.images || undefined,
             summaryMode: mode,
         });
     };
 
     /**
-     * 切换简略 / 详细摘要（有缓存则即时切换，否则排队生成）
+     * 切换简略 / 详细摘要（有历史缓存则即时切换，否则排队生成；再次精读见 handleResummary）
      */
     const handleSummaryModeChange = async (mode: SummaryMode) => {
         if (!localCollection?.url || !id) return;
@@ -263,6 +299,10 @@ export default function CollectionDetail() {
 
         const cached = getCachedSummary(localCollection, mode);
         if (cached) {
+            const prevCollection = localCollection;
+            setLocalCollection((prev) =>
+                prev ? { ...prev, summaryMode: mode, content: cached } : prev,
+            );
             try {
                 const updated = await api.updateCollection(id, {
                     summaryMode: mode,
@@ -272,15 +312,23 @@ export default function CollectionDetail() {
                 useCollectionStore.getState().updateSummary(id, updated);
             } catch {
                 showToast('切换摘要模式失败', 'error');
+                setLocalCollection(prevCollection);
             }
             return;
         }
 
         const raw = localCollection.rawContent || completedRawContent;
+        const detailedSummary = getCachedSummary(localCollection, 'detailed');
+        const isCompress = mode === 'brief' && !!detailedSummary;
+        const briefSource = isCompress ? detailedSummary : (raw || undefined);
+
         enqueue(id, localCollection.url, localCollection.title, 1, {
-            rawContent: raw || undefined,
+            rawContent: briefSource,
+            images: localCollection.images || undefined,
             summaryMode: mode,
+            sourceMode: isCompress ? 'compress' : undefined,
         });
+        setLocalCollection((prev) => (prev ? { ...prev, summaryMode: mode } : prev));
     };
 
     /**
@@ -293,6 +341,7 @@ export default function CollectionDetail() {
         setShowDirectionModal(false);
         enqueue(localCollection.id, localCollection.url, localCollection.title, 1, {
             rawContent: raw || undefined,
+            images: localCollection.images || undefined,
             userDirection: direction,
             previousSummary: summary,
             summaryMode: resolveSummaryMode(localCollection),
@@ -385,7 +434,7 @@ export default function CollectionDetail() {
         <div className="collection-detail">
             {/* 返回按钮 */}
             <div className="collection-detail-back">
-                <button className="action-btn" onClick={() => navigate('/')}>
+                <button className="action-btn" onClick={() => navigate(listReturnTo)}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <polyline points="15 18 9 12 15 6" />
                     </svg>
@@ -395,7 +444,7 @@ export default function CollectionDetail() {
 
             {/* 面包屑导航 */}
             <div className="collection-detail-breadcrumb">
-                <Link to="/">全部收藏</Link>
+                <Link to={listReturnTo}>返回列表</Link>
                 {localCollection.folder && (
                     <>
                         <span className="breadcrumb-sep">/</span>
@@ -754,9 +803,13 @@ export default function CollectionDetail() {
                                         <div
                                             className="detail-content-rich detail-raw-content"
                                             dangerouslySetInnerHTML={{
-                                                __html: DOMPurify.sanitize(localCollection.rawContent || completedRawContent || '', {
-                                                    ADD_ATTR: ['referrerpolicy'],
-                                                }),
+                                                __html: DOMPurify.sanitize(
+                                                    renderImagePlaceholders(
+                                                        localCollection.rawContent || completedRawContent || '',
+                                                        localCollection.images || null,
+                                                    ),
+                                                    { ADD_ATTR: ['referrerpolicy'] },
+                                                ),
                                             }}
                                         />
                                     ) : (

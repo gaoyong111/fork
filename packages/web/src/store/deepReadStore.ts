@@ -9,6 +9,8 @@ import {
     buildDeepReadCollectionUpdate,
     type DeepReadTemplateType,
 } from '@favorites/shared/ai/deepRead';
+import { inferTitleUpdate } from '@favorites/shared/metadata/collectionMeta';
+import type { DeepReadResult, Collection } from '@favorites/shared/types';
 import { classifyDeepReadError, getMaxAutoRetries, getRetryBackoffMs } from '@favorites/shared/ai/deepReadErrors';
 import type { SummaryMode } from '../types';
 import * as api from '../services/api';
@@ -30,6 +32,8 @@ export type DeepReadPhase = 'fetching' | 'summarizing';
 export interface DeepReadEnqueueOptions {
     /** 已有原文，跳过重抓 */
     rawContent?: string;
+    /** 已有图文分离数据（JSON） */
+    images?: string;
     /** 强制重新抓取（忽略 rawContent） */
     refetch?: boolean;
     /** 文章类型模板 */
@@ -40,6 +44,8 @@ export interface DeepReadEnqueueOptions {
     previousSummary?: string;
     /** 摘要模式 */
     summaryMode?: SummaryMode;
+    /** 从已有摘要压缩而非从原文精读 */
+    sourceMode?: 'compress';
 }
 
 export interface DeepReadTask {
@@ -50,11 +56,13 @@ export interface DeepReadTask {
     priority: number;
     error?: string;
     rawContent?: string;
+    images?: string;
     refetch?: boolean;
     templateType?: DeepReadTemplateType;
     userDirection?: string;
     previousSummary?: string;
     summaryMode?: SummaryMode;
+    sourceMode?: 'compress';
     retryCount?: number;
     phase?: DeepReadPhase;
 }
@@ -71,6 +79,8 @@ export interface DeepReadState {
     completedCount: number;
     completedContent: Record<string, string>;
     completedRawContent: Record<string, string>;
+    /** 精读完成后 API 返回的完整收藏项，供详情页刷新 */
+    completedCollections: Record<string, Collection>;
 
     /** 从 API 拉取未精读链接并入队（App 启动时调用一次） */
     syncPendingFromApi: () => Promise<void>;
@@ -94,6 +104,7 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
     completedCount: 0,
     completedContent: {},
     completedRawContent: {},
+    completedCollections: {},
 
     syncPendingFromApi: async () => {
         if (get().pendingSyncDone) return;
@@ -119,6 +130,7 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
                     status: 'pending' as const,
                     priority: 0,
                     rawContent: c.rawContent || undefined,
+                    images: c.images || undefined,
                     summaryMode: useAppSettingsStore.getState().getDefaultSummaryMode(),
                 }));
 
@@ -147,11 +159,13 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
             status: 'pending',
             priority,
             rawContent: useCachedRaw ? options.rawContent!.trim() : undefined,
+            images: options.images || undefined,
             refetch: options.refetch ?? false,
             templateType: options.templateType,
             userDirection: options.userDirection,
             previousSummary: options.previousSummary,
             summaryMode: options.summaryMode ?? useAppSettingsStore.getState().getDefaultSummaryMode(),
+            sourceMode: options.sourceMode,
             retryCount: 0,
         };
 
@@ -159,6 +173,8 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
         delete completedContent[collectionId];
         const completedRawContent = { ...state.completedRawContent };
         delete completedRawContent[collectionId];
+        const completedCollections = { ...state.completedCollections };
+        delete completedCollections[collectionId];
 
         const withoutExisting = state.tasks.filter((t) => t.collectionId !== collectionId);
         let tasks: DeepReadTask[];
@@ -169,7 +185,7 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
         } else {
             tasks = [...withoutExisting, newTask];
         }
-        set({ tasks, taskByCollectionId: syncTaskMap(tasks), completedContent, completedRawContent });
+        set({ tasks, taskByCollectionId: syncTaskMap(tasks), completedContent, completedRawContent, completedCollections });
 
         if (!state.currentTask && !state.paused) {
             get().startProcessing();
@@ -231,8 +247,19 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
                     mode,
                     result.summary,
                     result.rawContent,
+                    result.images ?? '',
                     existing,
+                    { skipRawContentUpdate: processingTask.sourceMode === 'compress' },
                 );
+                if (existing) {
+                    const metaPatch = inferTitleUpdate(existing, {
+                        pageTitle: result.pageTitle,
+                        rawContent: result.rawContent,
+                        summary: result.summary,
+                    });
+                    if (metaPatch.title) updatePayload.title = metaPatch.title;
+                    if (metaPatch.description) updatePayload.description = metaPatch.description;
+                }
                 return api.updateCollection(processingTask.collectionId, updatePayload);
             })
             .then((updatedCollection) => {
@@ -248,6 +275,12 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
                     ...state.completedRawContent,
                     [processingTask.collectionId]: updatedCollection?.rawContent || '',
                 };
+                const completedCollections = updatedCollection
+                    ? {
+                        ...state.completedCollections,
+                        [processingTask.collectionId]: updatedCollection,
+                    }
+                    : state.completedCollections;
                 set({
                     tasks,
                     taskByCollectionId: syncTaskMap(tasks),
@@ -255,6 +288,7 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
                     abortController: null,
                     completedContent,
                     completedRawContent,
+                    completedCollections,
                     completedCount: state.completedCount + 1,
                 });
                 useCollectionStore.getState().updateSummary(
@@ -355,16 +389,18 @@ export const useDeepReadStore = create<DeepReadState>((set, get) => ({
 async function processTask(
     task: DeepReadTask,
     signal: AbortSignal
-): Promise<{ rawContent: string; summary: string; templateType?: string }> {
+): Promise<DeepReadResult> {
     const rawContent = task.refetch ? undefined : task.rawContent;
     return api.deepRead(task.url, {
         signal,
         rawContent,
+        images: task.images,
         refetch: task.refetch,
         templateType: task.templateType,
         userDirection: task.userDirection,
         previousSummary: task.previousSummary,
         summaryMode: task.summaryMode,
+        sourceMode: task.sourceMode,
     });
 }
 

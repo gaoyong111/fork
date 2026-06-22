@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS collections (
     content_detailed TEXT DEFAULT NULL,
     summary_mode TEXT DEFAULT 'detailed',
     raw_content TEXT DEFAULT NULL,
+    images TEXT DEFAULT NULL,
     summary TEXT,
     cover_url TEXT,
     file_path TEXT,

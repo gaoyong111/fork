@@ -2,7 +2,7 @@ use crate::db::models::*;
 use rusqlite::{Connection, Result as SqliteResult};
 
 pub const COLLECTION_SELECT_FIELDS: &str =
-    "id, title, url, type, content, content_brief, content_detailed, summary_mode, raw_content, summary, cover_url, file_path, folder_id, is_favorite, is_archived, read_count, created_at, updated_at";
+    "id, title, url, type, content, content_brief, content_detailed, summary_mode, raw_content, images, summary, cover_url, file_path, folder_id, is_favorite, is_archived, read_count, created_at, updated_at";
 
 pub fn collection_from_row(row: &rusqlite::Row<'_>) -> SqliteResult<Collection> {
     Ok(Collection {
@@ -15,15 +15,16 @@ pub fn collection_from_row(row: &rusqlite::Row<'_>) -> SqliteResult<Collection> 
         content_detailed: row.get(6)?,
         summary_mode: row.get(7)?,
         raw_content: row.get(8)?,
-        summary: row.get(9)?,
-        cover_url: row.get(10)?,
-        file_path: row.get(11)?,
-        folder_id: row.get(12)?,
-        is_favorite: row.get::<_, i64>(13)? != 0,
-        is_archived: row.get::<_, i64>(14)? != 0,
-        read_count: row.get::<_, i64>(15)?,
-        created_at: row.get(16)?,
-        updated_at: row.get(17)?,
+        images: row.get(9)?,
+        summary: row.get(10)?,
+        cover_url: row.get(11)?,
+        file_path: row.get(12)?,
+        folder_id: row.get(13)?,
+        is_favorite: row.get::<_, i64>(14)? != 0,
+        is_archived: row.get::<_, i64>(15)? != 0,
+        read_count: row.get::<_, i64>(16)?,
+        created_at: row.get(17)?,
+        updated_at: row.get(18)?,
         tags: vec![],
         folder: None,
     })
