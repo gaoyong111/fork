@@ -294,7 +294,7 @@ export default function TagPopover({
                     ) : (
                         <span className="tag-popover-placeholder">选择标签...</span>
                     )}
-                    <button className="tag-popover-add-btn" title="添加标签">
+                    <button type="button" className="tag-popover-add-btn" title="添加标签">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <line x1="12" y1="5" x2="12" y2="19" />
                             <line x1="5" y1="12" x2="19" y2="12" />
@@ -353,6 +353,7 @@ export default function TagPopover({
                     )}
                     {filteredTags.map((tag) => (
                         <button
+                            type="button"
                             key={tag.id}
                             className={`tag-popover-item ${isSelected(tag.id) ? 'selected' : ''}`}
                             onClick={() => handleToggle(tag.id)}
@@ -373,6 +374,7 @@ export default function TagPopover({
                     {/* 搜索无匹配 → 创建选项 */}
                     {showCreateOption && (
                         <button
+                            type="button"
                             className="tag-popover-item tag-popover-create-option"
                             onClick={() => startCreate(searchQuery.trim())}
                         >
@@ -400,6 +402,7 @@ export default function TagPopover({
                         <div className="tag-popover-color-picker">
                             {PRESET_COLORS.map((color) => (
                                 <button
+                                    type="button"
                                     key={color}
                                     className={`tag-popover-color-dot ${createColor === color ? 'active' : ''}`}
                                     style={{ backgroundColor: color }}
@@ -409,6 +412,7 @@ export default function TagPopover({
                             ))}
                         </div>
                         <button
+                            type="button"
                             className="tag-popover-create-confirm"
                             onClick={handleConfirmCreate}
                             disabled={creating || !createName.trim()}
@@ -419,6 +423,7 @@ export default function TagPopover({
                             </svg>
                         </button>
                         <button
+                            type="button"
                             className="tag-popover-create-cancel"
                             onClick={() => { setIsCreating(false); setCreateName(''); }}
                             disabled={creating}
@@ -435,8 +440,9 @@ export default function TagPopover({
                 {/* 批量确认底部 */}
                 {showFooter && (
                     <div className="tag-popover-footer">
-                        <button className="tag-popover-btn-cancel" onClick={handleClose}>取消</button>
+                        <button type="button" className="tag-popover-btn-cancel" onClick={handleClose}>取消</button>
                         <button
+                            type="button"
                             className="tag-popover-btn-confirm"
                             onClick={handleFooterConfirm}
                             disabled={localSelectedIds.size === 0}
